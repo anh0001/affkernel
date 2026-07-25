@@ -22,7 +22,9 @@ jobs:
           python-version: '3.8'
 
       - name: Install ruff
-        run: pip install ruff
+        # Pinned to the same version as requirements-dev.txt so a future ruff
+        # release cannot fail CI on rules the tree was never checked against.
+        run: pip install ruff==0.6.9
 
       # ruff is configured for py38 in pyproject.toml. Never run --fix in CI:
       # an accidental py310+ rewrite would break the Python 3.8 runtime.
