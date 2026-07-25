@@ -1,0 +1,30 @@
+# Ablation A1 — loo_constant_lr (post-v2 LOO).
+#
+# Tests: "Is +0.091 over baseline just a dead-scheduler fix?" — the single
+# biggest reviewer-confound for v2. Reverts ONLY the LR schedule (cosine ->
+# the baseline's never-firing MultiStepLR), keeping every other v2 change
+# (stride-4 mask features, Dice+focal+boundary loss, kernel-16). Same seed
+# (42), same 72 epochs, same batch, same eval — apples-to-apples LOO.
+#
+# Expected if cosine LR was the dominant lever: F_beta^w slides from
+# 0.8094 toward the constant-LR baseline 0.7186. If it stays near 0.80,
+# the method survives the strongest reviewer attack.
+#
+# Top-level lr_scheduler block overrides the cosine schedule defined in
+# include/optimizer.yml via the YAMLConfig later-wins merge.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_loo_constant_lr
+
+# Restore the v1-baseline constant-LR schedule: MultiStepLR with a milestone
+# beyond the training horizon -> LR never decays -> identical to constant LR.
+lr_scheduler:
+  type: MultiStepLR
+  milestones: [1000]
+  gamma: 0.1

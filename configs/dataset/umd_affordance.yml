@@ -1,0 +1,46 @@
+task: detection
+
+# 17 UMD tool categories + background (tool_categories.txt ids 1..17).
+num_classes: 18
+
+train_dataloader:
+  type: DataLoader
+  dataset:
+    type: UMDDetection
+    root: ./dataset/umd
+    image_set: 'train'
+    # AffordanceNet-lineage protocol: 'category' = novel-instance split
+    # (category_split.txt, 54 train / 51 test tools, every category on both
+    # sides). 'novel' = novel-category split (novel_split.txt).
+    split: 'category'
+    # stride 1 = all 28,843 labeled frames -> exactly 14,823 train / 14,020
+    # test, the published pre-defined split counts (Apicella et al.,
+    # arXiv:2409.01814) of the AffordanceNet-lineage protocol. The official
+    # README's "human GT every 3rd frame" caveat is noted here for
+    # reference; stride/offset stay configurable for ablation.
+    frame_stride: 1
+    frame_offset: 0
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: True
+  batch_size: 4
+  num_workers: 4
+  drop_last: True
+
+val_dataloader:
+  type: DataLoader
+  dataset:
+    type: UMDDetection
+    root: ./dataset/umd
+    image_set: 'test'
+    split: 'category'
+    frame_stride: 1
+    frame_offset: 0
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: False
+  batch_size: 4
+  num_workers: 4
+  drop_last: False

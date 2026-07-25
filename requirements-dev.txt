@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Lint + format (config in pyproject.toml). Matches AGENTS.md style rules.
+ruff==0.6.9

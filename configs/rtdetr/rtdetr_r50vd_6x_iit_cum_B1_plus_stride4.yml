@@ -1,0 +1,28 @@
+# Cumulative ablation B1 — B0 + stride-4 (add 2x learned upsample).
+# Keeps plain CE, constant LR, kernel-8. Tests the dominant lever in the
+# additive direction: how much of v2's +0.091 over B0 comes from stride-4
+# alone? LOO predicts ~+0.071, but additive can differ due to interactions.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_cum_B1_plus_stride4
+
+# Add 1: stride-4 (use_mask_upsample defaults True in v2; here we leave the
+# upsample on while keeping kernel-8).
+AffordanceBranch:
+  reduced_dim: 8
+  dyn_hidden: 8
+
+# Still reverted: plain CE, constant LR.
+SetCriterion:
+  affordance_loss: ce
+
+lr_scheduler:
+  type: MultiStepLR
+  milestones: [1000]
+  gamma: 0.1

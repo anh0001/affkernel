@@ -1,0 +1,100 @@
+task: detection
+
+model: RTDETR
+criterion: SetCriterion
+postprocessor: RTDETRPostProcessor
+
+use_affordance: True  # New parameter to control affordance branch
+RTDETR: 
+  backbone: PResNet
+  encoder: HybridEncoder
+  decoder: RTDETRTransformer
+  affordance_branch: AffordanceBranch
+  multi_scale: [480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+
+PResNet:
+  depth: 50
+  variant: d
+  freeze_at: 0
+  return_idx: [1, 2, 3]
+  num_stages: 4
+  freeze_norm: True
+  pretrained: True 
+
+HybridEncoder:
+  in_channels: [512, 1024, 2048]
+  feat_strides: [8, 16, 32]
+
+  # intra
+  hidden_dim: 256
+  use_encoder_idx: [2]
+  num_encoder_layers: 1
+  nhead: 8
+  dim_feedforward: 1024
+  dropout: 0.
+  enc_act: 'gelu'
+  pe_temperature: 10000
+  
+  # cross
+  expansion: 1.0
+  depth_mult: 1
+  act: 'silu'
+
+  # eval
+  eval_spatial_size: [640, 640]
+
+
+RTDETRTransformer:
+  feat_channels: [256, 256, 256]
+  feat_strides: [8, 16, 32]
+  hidden_dim: 256
+  num_levels: 3
+
+  num_queries: 300
+
+  num_decoder_layers: 6
+  num_denoising: 100
+  
+  eval_idx: -1
+  eval_spatial_size: [640, 640]
+
+# The 'features' returned by the TransformerDecoder have the shape [num_layers, batch_size, num_queries, hidden_dim].
+# The full stack of features from all decoder layers is passed to the AffordanceBranch.
+# num_layers is set to 6 in the RTDETRTransformer configuration.
+AffordanceBranch:
+  # input_dim: Should match the number of decoder layers (num_decoder_layers in RTDETRTransformer)
+  input_dim: 6
+
+  # hidden_dim: Dimension of the feature vectors. Should match hidden_dim of RTDETRTransformer
+  hidden_dim: 256
+
+  # output_dim: Number of affordance classes to predict, including background
+  output_dim: 10  # 9 affordance classes + 1 background
+
+  # Reduced working dimension of the shared affordance-feature map. Widened
+  # 8 -> 16: 8 channels were too thin to carry 10-way affordance evidence into
+  # the per-instance dynamic kernel. Pairs with DYN_HIDDEN 16 in affordance.py.
+  reduced_dim: 16
+  
+
+use_focal_loss: True
+
+RTDETRPostProcessor:
+  num_top_queries: 50
+
+
+SetCriterion:
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_affordance: 3}
+  losses: ['vfl', 'boxes', 'affordances']
+  alpha: 0.75
+  gamma: 2.0
+
+  matcher:
+    type: HungarianMatcher
+    weight_dict: {cost_class: 2, cost_bbox: 5, cost_giou: 2, cost_affordance: 4}
+    # use_focal_loss: True 
+    alpha: 0.25
+    gamma: 2.0
+
+
+

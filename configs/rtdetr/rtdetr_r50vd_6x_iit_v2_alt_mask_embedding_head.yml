@@ -1,0 +1,40 @@
+# Ablation A5 — alt_mask_embedding_head (post-v2 mechanism alternative).
+#
+# Refutes the anti-claim "the dynamic kernel is decoration; any per-query
+# mask head works". Replaces the 2-layer 1x1 dynamic conv head with a
+# MaskFormer-style mask-embedding head: each query predicts an
+# (C+1) x embed_dim embedding; the pixel branch outputs `embed_dim` channels;
+# logits are produced by the dot product. Pixel branch / stride / CoordConv
+# choices are kept identical to v2 so this is a head-mechanism ablation
+# rather than a feature ablation.
+#
+# Expected: if the dynamic conv genuinely earns its place, F_beta^w drops
+# vs v2 0.8094. If it matches/beats v2, the mechanism story in the paper
+# must be reframed (consider re-anchoring on the shared-affordance-feature
+# design rather than the dynamic kernel specifically).
+#
+# Implementation: AffordanceEmbeddingBranch is a sibling registered class;
+# the model wrapper forwards `aff_head_type` through outputs, and the
+# criterion + postprocessor dispatch on it. Default (no head swap) keeps
+# 'dynamic' so every other config and the v2 checkpoint remain bit-exact.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_alt_mask_embedding_head
+
+RTDETR:
+  affordance_branch: AffordanceEmbeddingBranch
+
+AffordanceEmbeddingBranch:
+  input_dim: 6
+  hidden_dim: 256
+  output_dim: 10
+  reduced_dim: 16
+  use_mask_upsample: True
+  # embed_dim default is reduced_dim (16); set explicitly for documentation.
+  embed_dim: 16

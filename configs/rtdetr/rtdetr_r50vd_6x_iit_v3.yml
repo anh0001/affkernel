@@ -1,0 +1,36 @@
+# Experiment v3: v2 recipe + two affordance-accuracy levers.
+#
+# Builds on v2 (stride-4 mask feature + Dice/focal/boundary loss + cosine LR +
+# reduced_dim/DYN_HIDDEN 16). Adds, on the affordance branch ONLY (detector
+# untouched):
+#   1. True C2 stride-4 lateral — backbone now returns C2 (return_idx 0,
+#      256 ch @ stride 4); a lateral adds it to the shared affordance map, so
+#      the dynamic kernels get *real* high-res detail instead of a learned 2x
+#      upsample of the stride-8 encoder feature. Attacks v2's dominant ablation
+#      lever (resolution, -0.071 LOO) at its source.
+#   2. Box-relative geometry channels — per-instance (rx, ry, inside) offsets
+#      appended to the dynamic-kernel input, giving the kernels object-relative
+#      grounding (handle = box edge, cutting edge, pound face, support surface).
+#      Targets the weak classes (grasp / pound / cut).
+#
+# Separate output_dir keeps v2 checkpoints intact for comparison. Trains from
+# scratch (architecture changed). Seed/epochs/batch identical to v2.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3
+
+# Expose backbone C2 (stride-4, 256 ch) in addition to C3/C4/C5. RTDETR.forward
+# routes the extra finest level to the affordance branch; the encoder still
+# consumes exactly [C3, C4, C5].
+PResNet:
+  return_idx: [0, 1, 2, 3]
+
+AffordanceBranch:
+  low_level_dim: 256      # ResNet50-d C2 channels (stride-4 lateral)
+  use_box_relative: True  # per-instance (rx, ry, inside) geometry channels

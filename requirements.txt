@@ -1,0 +1,25 @@
+# AffKernel runtime dependencies (Python 3.8, CUDA 11.7 build of torch 2.0.1).
+# Install torch/torchvision from the PyTorch index if you need a different CUDA
+# build: pip install torch==2.0.1 torchvision==0.15.2 --index-url <pytorch-url>
+
+# Core numerics / model
+numpy==1.24.3
+torch==2.0.1
+torchvision==0.15.2
+
+# Config loading, geometry and mask post-processing
+PyYAML>=5.4,<7
+scipy>=1.7,<1.11          # connected components, Hungarian matching, .mat IO
+packaging>=20.0           # src/data/functional.py torchvision version gate
+
+# Image IO and visualization
+Pillow>=8.0,<11           # all dataset/inference image IO
+matplotlib>=3.4,<4        # qualitative visualizers and dataset test plots
+
+# Detection evaluation
+pycocotools>=2.0.4
+
+# ONNX export path (tools/export_onnx.py)
+onnx==1.14.0
+onnxruntime==1.15.1
+onnxsim>=0.4.0            # only needed for `export_onnx.py --simplify`

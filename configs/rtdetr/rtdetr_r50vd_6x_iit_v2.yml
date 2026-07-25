@@ -1,0 +1,14 @@
+# Experiment v2: stride-4 affordance masks + Dice/focal/boundary loss +
+# cosine LR + widened dynamic kernel (reduced_dim 16 / DYN_HIDDEN 16).
+# Separate output_dir so the constant-LR baseline checkpoints in
+# ./output/rtdetr_r50vd_6x_iit stay intact for comparison. Trains from
+# scratch (architecture changed -> baseline checkpoints are incompatible).
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2

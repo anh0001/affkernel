@@ -1,0 +1,35 @@
+# Swin-T backbone on top of the stride-2 affordance head (architecture-class probe).
+#
+# The residual gap to the published deterministic Swin-T result (0.890) is
+# architecture-bound, NOT depth-bound: our ResNet-101vd probe bought only +0.003
+# for +48% params, and a sweep over the loss weights found no free win. The
+# remaining lever is the backbone architecture class. This swaps ResNet-50d ->
+# torchvision Swin-T, the same backbone family as the published result, keeping
+# the stride-2 head and the full base recipe.
+#
+# RTDETR.forward is backbone-agnostic: it routes the finest level (C2, stride-4)
+# to the affordance branch and feeds the last three to the encoder. Only the
+# channel dims change vs ResNet: Swin-T C2/C3/C4/C5 = 96/192/384/768 (vs
+# 256/512/1024/2048), so the encoder in_channels and the affordance C2 lateral
+# (low_level_dim) are re-pinned below. Everything else (stride-2 mask branch,
+# box-relative channels, 72ep/batch4/640/cosine/Dice+focal+boundary) is inherited
+# verbatim from rtdetr_r50vd_6x_iit_v3_stride2. NOTE: latency WILL move (Swin-T
+# is heavier than R50): this probe targets accuracy; the latency cost is the
+# documented trade reported alongside the result.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_swin_t_6x_iit_v3_stride2
+
+RTDETR:
+  backbone: SwinTransformerBackbone
+
+SwinTransformerBackbone:
+  variant: tiny
+  return_idx: [0, 1, 2, 3]   # C2(stride4) + C3/C4/C5 -> C2 to affordance, rest to encoder
+  pretrained: True
+
+HybridEncoder:
+  in_channels: [192, 384, 768]   # Swin-T C3/C4/C5 (vs ResNet [512, 1024, 2048])
+
+AffordanceBranch:
+  low_level_dim: 96              # Swin-T C2 channels (vs ResNet-50d 256)

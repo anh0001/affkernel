@@ -1,0 +1,10 @@
+# Loss-hyperparameter sweep on the stride-2 headline: dice_w 1.0 -> 0.5 (control: less region, more focal+edge CE).
+# Free at inference (no architecture change). Identical to
+# rtdetr_r50vd_6x_iit_v3_stride2 except the one affordance-loss knob below
+# (seed via CLI --seed 42 to match the anchor 0.8457).
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_sweep_dice0p5
+
+SetCriterion:
+  aff_dice_w: 0.5

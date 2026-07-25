@@ -1,0 +1,30 @@
+# Cumulative ablation B2-cum — B1 + Dice/focal/boundary combined loss.
+# stride-4 + combined loss + constant LR + kernel-8. Tests second-strongest
+# lever in additive direction: how much does the metric-aligned loss add on
+# top of stride-4? LOO predicts ~+0.032.
+#
+# Plus B3 (cosine LR) and B4 (kernel-16 == v2) are covered by sign-flipping
+# A1 and the v2 anchor respectively — no new runs needed for those.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_cum_B2_plus_loss
+
+# B1: stride-4 (default) + kernel-8.
+AffordanceBranch:
+  reduced_dim: 8
+  dyn_hidden: 8
+
+# B2-cum: combined loss (default in v2 path).
+# (No SetCriterion override -> uses v2's combined loss.)
+
+# Still reverted: constant LR.
+lr_scheduler:
+  type: MultiStepLR
+  milestones: [1000]
+  gamma: 0.1

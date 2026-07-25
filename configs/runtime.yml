@@ -1,0 +1,25 @@
+sync_bn: True
+find_unused_parameters: False
+
+
+use_amp: False
+
+# Save a numbered checkpoint every N epochs, in addition to the always-saved
+# `checkpoint.pth` (last epoch). The src/core default is 1 (every epoch), which
+# at roughly 700 MB per checkpoint over a 72-epoch run needs about 50 GiB of
+# disk. 18 keeps about 4 numbered checkpoints per 72-epoch run (~3 GiB) while
+# still allowing mid-training resumption from a reasonably recent point.
+# Lower it if you want finer-grained resume points and have the disk budget.
+checkpoint_step: 18
+
+scaler:
+  type: GradScaler
+  enabled: True
+
+
+use_ema: False
+ema:
+  type: ModelEMA
+  decay: 0.9999
+  warmups: 2000
+

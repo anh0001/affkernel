@@ -1,0 +1,15 @@
+# Loss-hyperparameter sweep on the stride-2 headline: boundary_w 4.0 -> 8.0.
+#
+# The affordance loss weights (focal_gamma, boundary_w, dice_w) were fixed
+# constants through v2/v3 and never swept (memory bottleneck-diagnosis-resolution).
+# They are FREE at inference (no architecture change -> identical latency to
+# R50 stride-2), so they are the cheapest remaining accuracy lever. F_beta^w is
+# boundary-weighted and the weak classes are thin (boundary-dominated), so more
+# boundary emphasis is the highest-EV first probe. Everything else is identical
+# to rtdetr_r50vd_6x_iit_v3_stride2 (seed via CLI --seed 42 to match the anchor).
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_sweep_boundary8
+
+SetCriterion:
+  aff_boundary_w: 8.0

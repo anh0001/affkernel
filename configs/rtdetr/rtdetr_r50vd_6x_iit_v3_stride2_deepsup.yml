@@ -1,0 +1,36 @@
+# stride-2 head + DEEP affordance supervision + full-resolution supervision.
+#
+# Theory-of-Constraints re-diagnosis (2026-06-30, branch resolution-probe-eval):
+# at stride-2 the binding constraint has MOVED off resolution. Two free probes
+# showed (a) the 320-area supervision ceiling ~= the 640 ceiling, so a third
+# ConvTranspose (stride-1) buys ~0; and (b) the model sits ~0.11 BELOW its own
+# current supervision ceiling -- the dominant residual is mask-head
+# representation quality, not resolution and not detection (detection-coupling
+# tax only +0.025). A code audit then found the affordance head is supervised
+# at the FINAL decoder layer only (zero deep supervision), while the GT is
+# nearest-downsampled to the feature grid in the loss (aliases thin structure).
+#
+# This run keeps the stride-2 head IDENTICAL and adds two orthogonal,
+# INFERENCE-FREE (train-time-only) levers, both behind toggles for ablation:
+#   A) deep/aux affordance supervision -- reuse the shared kernel head on the
+#      intermediate decoder layers (0..L-2), down-weighted 0.25/layer so the 5
+#      aux layers do not overpower detection. Eval path unchanged (last layer
+#      only) => zero added latency/VRAM at inference.
+#   B) full-resolution supervision -- upsample the decoded per-query logits to
+#      GT resolution (mirrors loss_masks) instead of nearest-downsampling GT to
+#      the ~320 feature grid. Per-matched-query, so cheap; train-time only.
+#
+# Detector, input resolution (640), eval_spatial_size, per-query decode cost and
+# num_top_queries are all untouched -> the ~24 ms / 42 FPS real-time budget is
+# preserved. Run with --seed 42 (matches the stride-2 anchor 0.8457).
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup
+
+AffordanceBranch:
+  mask_upsample_factor: 4   # stride-2 (inherited; restated for clarity)
+  deep_supervision: True    # (A) supervise intermediate decoder layers
+
+SetCriterion:
+  aff_aux_loss_weight: 0.25  # (A) per-aux-layer scale on top of base weight 3
+  aff_full_res_loss: True    # (B) supervise at GT res via logit upsampling

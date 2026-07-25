@@ -1,0 +1,32 @@
+# A1 probe: one-to-many auxiliary matching (H-DETR style) on the deepsup recipe.
+#
+# ToC re-diagnosis (2026-07-02) + the B1 null (2026-07-03) point the binding
+# constraint at detection/export RECALL, not mask quality: our fired-instance
+# mask quality already >= det-Swin-T, but we ZERO more GT-present (image,class)
+# pairs on hard / low-AP host objects (Spearman host-AP vs miss% = -0.67:
+# bottle->w-grasp, spatula->support, hammer->pound, multi-tool grasp scenes).
+# Threshold sweeps are exhausted and DN-DETR is already on, so the remaining
+# recall lever is denser positive supervision at train time.
+#
+# Mechanism: the decoder decodes an extra isolated group of num_o2m_queries at
+# train, matched ONE-TO-MANY (each GT repeated o2m_group_repeat times) so every
+# GT gets that many positive queries. The group is fully attention-isolated from
+# the primary one-to-one queries and DROPPED before inference -> 0 ms at test
+# (~24 ms / 42 FPS budget unchanged). Detection-only: no affordance kernels on
+# the o2m group. Deepsup toggles inherited via deep-merge. Run with --seed 42.
+#
+# Decision rule: keep only if mean F_beta^w gain > +0.004 (3-seed sigma ~0.002)
+# driven by REDUCED detection-coupling misses (miss% down on support/w-grasp/
+# contain/grasp) with no primary-branch regression; else revert. Kill signal:
+# miss% flat AND mean flat => recall is capacity-bound, not supervision-bound;
+# escalate to B2 (distillation) or A2 (copy-paste of low-AP hosts).
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_o2m
+
+RTDETRTransformer:
+  num_o2m_queries: 300   # extra one-to-many query group (train-only, dropped at inference)
+  o2m_group_repeat: 4    # positives per GT in the one-to-many branch
+
+SetCriterion:
+  o2m_loss_weight: 1.0   # scale on the o2m detection loss (vfl + bbox + giou)

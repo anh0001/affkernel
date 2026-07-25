@@ -1,0 +1,25 @@
+# Attribution ablation — v3 LOO: remove C2 lateral (= box-relative ONLY).
+#
+# Keeps the per-instance box-relative geometry channels; drops the true C2
+# stride-4 lateral (reverts to v2's learned 2x upsample, return_idx [1,2,3]).
+# Tests "how much of v3's +0.0054 over v2 comes from box-relative alone?" Pair
+# with rtdetr_r50vd_6x_iit_v3_loo_box_relative.yml. Seed/epochs/batch identical
+# to v3. Box-relative is the lever the per-class deltas suggest drove the weak-
+# class gains (cut/pound/grasp), so this run is the key one for that claim.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_loo_c2_lateral
+
+# Drop C2: revert backbone to the v2 levels (no stride-4 feature exposed).
+PResNet:
+  return_idx: [1, 2, 3]
+
+AffordanceBranch:
+  # low_level_dim omitted -> no C2 lateral (the LOO).
+  use_box_relative: True   # box-relative ON

@@ -1,0 +1,26 @@
+# Ablation A4 — loo_small_dyn_kernel_8 (post-v2 LOO).
+#
+# Tests: "Did the bigger dynamic kernel (DYN_HIDDEN=16, reduced_dim=16)
+# matter, or is the pre-v2 size 8 enough?" Reverts ONLY the kernel widths.
+# Keeps stride-4, the new loss, and cosine LR. Seed/epochs/batch identical
+# to v2.
+#
+# Expected if kernel width mattered: moderate mask drop. If no drop, prefer
+# the smaller kernel as the efficient default (fewer dyn params per query).
+#
+# Implementation: AffordanceBranch gained `dyn_hidden` ctor arg (default 16);
+# `decode_affordance_masks` infers the hidden width from `kernels.shape[1]`,
+# so no plumbing through criterion/postprocessor is needed.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_loo_small_dyn_kernel_8
+
+AffordanceBranch:
+  reduced_dim: 8
+  dyn_hidden: 8

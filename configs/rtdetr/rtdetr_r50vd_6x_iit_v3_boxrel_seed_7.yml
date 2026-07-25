@@ -1,0 +1,15 @@
+# 3-seed confirm of the canonical box-relative v3 method — seed 7.
+# Identical to rtdetr_r50vd_6x_iit_v3_boxrel.yml except output_dir. Run with
+# --seed 7. Matches v2's seed set {42,7,123} for a like-for-like mean±std.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_boxrel_seed_7
+
+AffordanceBranch:
+  use_box_relative: True

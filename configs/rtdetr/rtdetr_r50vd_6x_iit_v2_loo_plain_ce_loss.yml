@@ -1,0 +1,27 @@
+# Ablation A2 — loo_plain_ce_loss (post-v2 LOO).
+#
+# Tests: "Was the gain mostly from the new Dice+focal+boundary loss?"
+# Reverts ONLY the affordance loss (combined edge-weighted-focal-CE + Dice
+# back to plain pixel CE — the pre-v2 criterion). Keeps stride-4, cosine LR,
+# and kernel-16. Seed/epochs/batch identical to v2.
+#
+# Expected if the new loss was the dominant lever: large F_beta^w drop,
+# especially on thin/rare classes (cut, grasp, pound) and at boundaries.
+#
+# Implementation: SetCriterion gained an `affordance_loss: 'combined'|'ce'`
+# constructor arg (default 'combined' = v2 behaviour). The override below
+# requests 'ce'. The 'loss_affordance: 3' weight from include/affkernel_r50vd
+# is preserved (apples-to-apples with the pre-v2 baseline that used the same
+# weight with plain CE).
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_loo_plain_ce_loss
+
+SetCriterion:
+  affordance_loss: ce

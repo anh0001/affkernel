@@ -1,0 +1,7 @@
+# B2 seed-variance run: alt_mask_embedding_head with --seed 123.
+# Same content as ../rtdetr_r50vd_6x_iit_v2_alt_mask_embedding_head.yml but routes to a separate output_dir.
+# Launch: python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_iit_v2_alt_mask_embedding_head_seed_123.yml --seed 123
+__include__:
+  - rtdetr_r50vd_6x_iit_v2_alt_mask_embedding_head.yml
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_alt_mask_embedding_head_seed_123

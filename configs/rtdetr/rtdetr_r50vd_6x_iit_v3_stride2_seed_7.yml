@@ -1,0 +1,7 @@
+# 3-seed confirm of the stride-2 affordance mask branch — seed 7.
+# Identical to rtdetr_r50vd_6x_iit_v3_stride2.yml except output_dir. Run with
+# --seed 7. Matches the v3 seed set {42,7,123} for a like-for-like mean±std
+# (v3 3-seed canonical 0.8150±0.0009; stride-2 seed 42 peak 0.8457).
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_seed_7

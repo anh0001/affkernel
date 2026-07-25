@@ -1,0 +1,36 @@
+task: detection
+
+num_classes: 11
+remap_iit_category: True
+
+train_dataloader: 
+  type: DataLoader
+  dataset: 
+    type: IITDetection
+    root: ./dataset/iit/data
+    year: '2012'
+    image_set: 'train'
+    use_difficult: False
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: True
+  batch_size: 4
+  num_workers: 4
+  drop_last: True 
+
+val_dataloader:
+  type: DataLoader
+  dataset: 
+    type: IITDetection
+    root: ./dataset/iit/data
+    year: '2012'
+    image_set: 'test'
+    use_difficult: False
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: False
+  batch_size: 4
+  num_workers: 4
+  drop_last: False

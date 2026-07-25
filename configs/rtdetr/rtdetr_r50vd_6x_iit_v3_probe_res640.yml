@@ -1,0 +1,15 @@
+# Resolution probe — 640 baseline (self-consistent control).
+#
+# Eval-only. Re-evaluates the EXISTING v3 checkpoint at the native 640x640 to
+# establish a baseline on the SAME checkpoint (epoch 71, checkpoint.pth) and the
+# SAME code path used by the 800/1024 probes — so the cross-resolution delta is
+# apples-to-apples (not vs the logged peak-epoch number). No retrain.
+#
+# Diagnosis (Theory-of-Constraints, 2026-06-18): the binding accuracy constraint
+# is the affordance mask's readout+supervision resolution (stride-4 @ 640 lock).
+# Decision rule: if thin classes (grasp/pound/cut/support) rise at 800/1024 while
+# hit/display stay flat -> resolution confirmed; if flat -> info gone upstream
+# (backbone), pivot to a backbone swap.
+__include__: ['./rtdetr_r50vd_6x_iit_v3.yml']
+
+output_dir: ./output/probe_res640

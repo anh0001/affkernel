@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the software and the paper below."
+title: "AffKernel: single-pass, NMS-free affordance segmentation for real-time robotic manipulation"
+abstract: >-
+  AffKernel couples RT-DETR object queries with a CondInst-style per-query
+  dynamic-convolution kernel that decodes per-object affordance masks from a
+  single shared high-resolution affordance map. Inference is single-pass,
+  NMS-free and deterministic, running at 42 FPS while reaching a weighted
+  F-measure of 0.868 on IIT-AFF.
+type: software
+authors:
+  - family-names: Risnumawan
+    given-names: Anhar
+repository-code: "https://github.com/anh0001/affkernel"
+license: MIT
+keywords:
+  - affordance segmentation
+  - instance segmentation
+  - robotic manipulation
+  - real-time inference
+  - transformer detector
+preferred-citation:
+  type: article
+  title: >-
+    AffKernel: Single-Pass Affordance Segmentation with Per-Query Dynamic
+    Convolution for Real-Time Robotic Manipulation
+  authors:
+    - family-names: Risnumawan
+      given-names: Anhar
+  journal: "IEEE Access"
+  year: 2026
+  notes: "Under review"

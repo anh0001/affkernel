@@ -1,0 +1,24 @@
+# Ablation A3 — loo_stride8_aff_feat (post-v2 LOO).
+#
+# Tests: "Did the stride-4 affordance feature map drive the mask gain?"
+# Reverts ONLY the 2x learned upsample (stride-4 -> stride-8). Keeps the new
+# Dice+focal+boundary loss, cosine LR, and kernel-16. Seed/epochs/batch
+# identical to v2.
+#
+# Expected if stride-4 was the dominant lever: mask F/AP drop, biggest hit
+# on thin/small classes (cut, grasp, w-grasp); bbox unchanged.
+#
+# Implementation: AffordanceBranch gained a `use_mask_upsample: bool` ctor
+# arg (default True = v2). False omits the 2x ConvTranspose block.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_loo_stride8_aff_feat
+
+AffordanceBranch:
+  use_mask_upsample: False

@@ -1,0 +1,10 @@
+# 3-seed confirm of the UMD run (deepsup stride-2 recipe on UMD Part-Affordance,
+# category split, 7 affordance classes) — seed 123. Identical to
+# rtdetr_r50vd_6x_umd.yml except output_dir. Run with --seed 123.
+# Seed set {42,7,123} matches the IIT deepsup convention. Seed-42 final
+# last-epoch EMA F_beta^w(beta^2=1) = 0.8795 passed the pre-registered gate
+# (>= 0.84, UMD_PLAN.md §6); targets: det Swin-T 86.03 / BPN 86.21 /
+# Bayesian 87.50 (Mur-Labadia Table 2).
+__include__: ['./rtdetr_r50vd_6x_umd.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_umd_seed_123

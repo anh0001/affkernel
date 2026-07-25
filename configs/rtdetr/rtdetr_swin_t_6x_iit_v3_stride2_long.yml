@@ -1,0 +1,34 @@
+# Swin-T backbone, fair (transformer-appropriate) training recipe.
+#
+# The first Swin-T run (rtdetr_swin_t_6x_iit_v3_stride2.yml) under-trained: it
+# peaked at the LAST epoch (71) still rising (+0.00014/ep) while R50 had
+# plateaued, because the ResNet-tuned 72-ep cosine starves the transformer
+# backbone (backbone LR annealed to ~1e-6 by the back third). Peak 0.8325 vs R50
+# stride-2 0.8457 was an under-training artifact, not a fair comparison.
+#
+# Per a cross-model (Codex) recommendation, this is the fair re-run: a CLEAN
+# pre-declared Swin recipe, not "ResNet recipe + more epochs". Two coupled
+# changes vs the first Swin run, both to give the transformer adaptation budget:
+#   - epochs 72 -> 108 and CosineAnnealingLR T_max 72 -> 108 (longer schedule)
+#   - backbone LR 1e-5 -> 2e-5 (the rest of the recipe — heads/encoder/decoder
+#     LR 1e-4, wd 1e-4, eta_min 1e-6, EMA, batch 4, 640, stride-2 head — unchanged)
+# Expectation (Codex): 0.845-0.860, parity-to-modest-win, NOT a jump to 0.890;
+# 3-seed before calling parity; do not over-claim "architecture-bound" if Swin
+# only matches R50 (the mask-head/readout architecture is then the next lever).
+__include__: ['./rtdetr_swin_t_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_swin_t_6x_iit_v3_stride2_long
+
+epoches: 108
+
+lr_scheduler:
+  T_max: 108
+
+# Re-specify the full optimizer.params list (YAML lists are replaced wholesale,
+# not deep-merged) with the backbone LR raised 1e-5 -> 2e-5; encoder/decoder
+# no-weight-decay groups unchanged.
+optimizer:
+  params:
+    - {params: 'backbone', lr: 0.00002}
+    - {params: '^(?=.*encoder(?=.*bias|.*norm.*weight)).*$', weight_decay: 0.}
+    - {params: '^(?=.*decoder(?=.*bias|.*norm.*weight)).*$', weight_decay: 0.}

@@ -1,0 +1,31 @@
+# reduced_dim 16->32 plus a jointly-trained dense auxiliary affordance head on
+# aff_feat.
+#
+# Motivation: in our miss analysis the residual miss tax (~2.2pp) concentrates
+# in pairs where the detector FINDS the box but the trunk carries no class
+# evidence on the GT region: a frozen-trunk linear probe scores only ~0.21
+# there while reaching 79-81% balanced pixel accuracy globally, so the missed
+# regions look like REPRESENTATION blind spots. Two coupled levers, both on the
+# readout/supervision axis:
+#   A) reduced_dim 16 -> 32: double the pixel-trunk channel budget the dynamic
+#      kernels (and the dense head) read. Latency +<1 ms.
+#   B) dense_aux: a 1x1 box-independent classifier on aff_feat, trained jointly
+#      with the same edge-weighted focal CE + Dice at GT resolution, weight 1.0
+#      (the head should SHAPE the trunk, not dominate it: per-query masks keep
+#      weight 3). At eval it feeds the slot-gated dense fallback. +<0.1 ms.
+#
+# NOTE: 32-channel checkpoints are incompatible with 16-channel ones, so train
+# from a fresh init rather than resuming model/EMA/optimizer state from a prior
+# reduced_dim-16 run.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_dense32
+
+AffordanceBranch:
+  reduced_dim: 32
+  dense_aux: True
+
+SetCriterion:
+  losses: ['vfl', 'boxes', 'affordances', 'affordances_dense']
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_affordance: 3,
+                loss_affordance_dense: 1.0}

@@ -1,0 +1,33 @@
+# Cumulative ablation B0 — base (pre-v2): stride-8 + plain CE + constant LR
+# + kernel-8. All 4 v2 levers reverted simultaneously. Joint with v2's
+# current eval pipeline (orig_size fix etc.), so directly comparable to v2
+# and the LOO ablations. Seed/epochs/batch identical to v2 anchor (42, 72).
+#
+# Expected: F_beta^w ≈ 0.7186 (the pre-v2 baseline number from
+# ABLATION_RESULTS.md). Confirms the additive direction starts at the same
+# point the LOO chain converged to.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_cum_B0_base
+
+# Revert 1: stride-8 (drop 2x learned upsample).
+AffordanceBranch:
+  use_mask_upsample: False
+  reduced_dim: 8
+  dyn_hidden: 8
+
+# Revert 2: plain pixel CE (drop Dice+focal+boundary combined loss).
+SetCriterion:
+  affordance_loss: ce
+
+# Revert 3: constant LR (MultiStepLR with milestone beyond horizon).
+lr_scheduler:
+  type: MultiStepLR
+  milestones: [1000]
+  gamma: 0.1

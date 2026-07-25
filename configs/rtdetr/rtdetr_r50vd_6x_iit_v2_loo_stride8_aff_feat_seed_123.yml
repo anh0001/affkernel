@@ -1,0 +1,7 @@
+# B2 seed-variance run: loo_stride8_aff_feat with --seed 123.
+# Same content as ../rtdetr_r50vd_6x_iit_v2_loo_stride8_aff_feat.yml but routes to a separate output_dir.
+# Launch: python tools/train.py -c configs/rtdetr/rtdetr_r50vd_6x_iit_v2_loo_stride8_aff_feat_seed_123.yml --seed 123
+__include__:
+  - rtdetr_r50vd_6x_iit_v2_loo_stride8_aff_feat.yml
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v2_loo_stride8_aff_feat_seed_123

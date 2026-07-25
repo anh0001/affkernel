@@ -1,0 +1,30 @@
+# B1 probe: grasp-only boundary-loss up-weight, on top of the deepsup recipe.
+#
+# ToC re-diagnosis (2026-07-02, branch resolution-probe-eval): adversarial
+# verification of the parity gap to det-Swin-T (0.883, beta=1) found the mask
+# head is NOT the binding constraint at the mean level -- on fired instances our
+# quality already >= det-Swin-T (fired 0.893 > 0.883; contain fired == theirs).
+# The ONE class with a genuine fired-quality hole is grasp (0.81 beta=1, thin
+# low-contrast tool handles). GLOBAL boundary-weight is a measured local optimum
+# (concave, max at bw=4; bw=8 hurt thin-4 by -0.0109), but PER-CLASS boundary
+# weighting was never tested. This isolates the grasp boundary term.
+#
+# Change vs deepsup: boundary pixels of the grasp class (affordance label 5) get
+# weight 8.0 instead of the global 4.0; every other class keeps 4.0. Train-time
+# only -- the eval path and per-query decode are byte-identical, so the
+# ~24 ms / 42 FPS real-time budget is unchanged. Deepsup toggles
+# (aff_aux_loss_weight, aff_full_res_loss) are inherited via deep-merge. Run
+# with --seed 42 to compare against the deepsup seed-42 baseline.
+#
+# Decision rule: keep only if mean F_beta^w gain > +0.004 (3-seed sigma ~0.002)
+# with grasp per-class UP and no thin-class regression; else revert (grasp bw is
+# a local optimum too). Kill signal: grasp per-class flat/down => the grasp hole
+# is not loss-addressable at this grid; escalate to distillation (B2) or the
+# recall levers (A1/A2), which target the larger detection-coupling component.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_graspbw
+
+SetCriterion:
+  # {affordance_class_index: boundary_weight}. IIT-AFF labels: 5 = grasp.
+  aff_class_boundary_w: {5: 8.0}

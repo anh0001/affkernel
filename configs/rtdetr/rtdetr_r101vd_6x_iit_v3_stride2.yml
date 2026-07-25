@@ -1,0 +1,20 @@
+# R101vd backbone on top of the stride-2 affordance head (backbone-capacity probe).
+#
+# After the stride-2 mask branch landed, the residual gap to the published
+# deterministic Swin-T result (0.890) looked backbone-bound. This is the cheap,
+# in-framework first probe: does a deeper conv backbone (ResNet-101vd) move the
+# needle on top of stride-2, before committing to the larger Swin-T integration?
+#
+# DROP-IN: ResNet C3/C4/C5 channels are [512,1024,2048] for both depth 50 and
+# 101, and C2 is 256 either way, so the HybridEncoder (in_channels [512,1024,
+# 2048], hidden_dim 256) and AffordanceBranch (low_level_dim 256) are UNCHANGED.
+# Only PResNet.depth changes; R101vd-ssld pretrained weights auto-download. The
+# stride-2 mask branch, box-relative channels, C2 lateral, and the full base
+# recipe (72ep/batch4/640/cosine/Dice+focal+boundary) are inherited verbatim, isolating
+# the backbone as the single changed variable vs rtdetr_r50vd_6x_iit_v3_stride2.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
+
+output_dir: ./output/rtdetr_r101vd_6x_iit_v3_stride2
+
+PResNet:
+  depth: 101

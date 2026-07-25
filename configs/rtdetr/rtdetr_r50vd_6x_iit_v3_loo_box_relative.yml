@@ -1,0 +1,23 @@
+# Attribution ablation — v3 LOO: remove box-relative (= C2-lateral ONLY).
+#
+# Keeps the true C2 stride-4 lateral; drops the per-instance box-relative
+# geometry channels. Tests "how much of v3's +0.0054 over v2 comes from C2
+# alone?" Pair with rtdetr_r50vd_6x_iit_v3_loo_c2_lateral.yml (the other LOO)
+# to credit each lever. Seed/epochs/batch identical to v3.
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_loo_box_relative
+
+# Keep C2 stride-4 lateral.
+PResNet:
+  return_idx: [0, 1, 2, 3]
+
+AffordanceBranch:
+  low_level_dim: 256       # C2 lateral ON
+  use_box_relative: False  # box-relative OFF (the LOO)

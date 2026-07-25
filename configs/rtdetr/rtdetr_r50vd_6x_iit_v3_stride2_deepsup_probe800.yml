@@ -1,0 +1,35 @@
+# Test-resolution probe #2 — 800x800 eval of the DEEPSUP checkpoint (no retrain).
+#
+# ToC re-diagnosis #4 (2026-07-04): B1 (grasp boundary) and A1 (one-to-many
+# matching) both KILLED -> detection/export recall is CAPACITY-bound at 640.
+# Every capacity lever so far (R101, Swin-T, o2m) was tried at a FIXED 640
+# input; test-time resolution is the one capacity axis never measured against
+# the MISS COUNT (decompose_fbw_gap.py post-dates the 2026-06-18 640/800/1024
+# probe, which was on the stride-4 v3 ckpt and only looked at the mean).
+# Training uses multi_scale 480..800, so an 800 eval is NOT fully
+# off-distribution for the detector.
+#
+# Decision rule (pre-registered): the probe targets MISSES, not the mean.
+#   - misses drop materially (175 -> <150) AND mean holds/rises -> the recall
+#     constraint is 640-lock-bound; next lever = train/supervise at 800
+#     (spends ~1.5x latency; still beats det-Swin-T's latency class).
+#   - misses flat/up -> recall is scale-invariant-capacity-bound -> the
+#     real-time ceiling verdict stands; STOP is the honest recommendation.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/probe_deepsup_res800
+
+HybridEncoder:
+  eval_spatial_size: [800, 800]
+
+RTDETRTransformer:
+  eval_spatial_size: [800, 800]
+
+val_dataloader:
+  dataset:
+    transforms:
+      ops:
+        - {type: Resize, size: [800, 800]}
+        - {type: ToImageTensor}
+        - {type: ConvertDtype}
+  batch_size: 4

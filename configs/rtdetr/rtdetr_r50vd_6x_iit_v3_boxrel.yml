@@ -1,0 +1,27 @@
+# Canonical v3 method: RT-DETR + box-relative dynamic-kernel affordance head.
+#
+# The attribution ablation (2026-06-07) showed box-relative geometry channels
+# carry the ENTIRE v3 gain (+0.0063 over v2, 0.8157 vs 0.8094) while the C2
+# stride-4 lateral is decoration — negative alone (C2-only 0.8079) and
+# non-additive (C2+box-rel 0.8148 < box-rel-only 0.8157). So the canonical
+# contribution is box-relative ONLY: v2 recipe + use_box_relative, with NO C2
+# lateral and NO backbone return_idx change (PResNet stays [1,2,3]). The C2
+# code path is retained (low_level_dim off by default) only to reproduce the
+# ablation rows (rtdetr_r50vd_6x_iit_v3.yml = +C2+box-rel,
+# rtdetr_r50vd_6x_iit_v3_loo_box_relative.yml = +C2 only).
+#
+# Seed 42. Seeds 7/123 are sibling configs for the 3-seed confirm, matching
+# v2's seed set {42,7,123}. Run with: tools/train.py -c <this> --seed 42
+__include__: [
+  '../dataset/iit_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_boxrel
+
+AffordanceBranch:
+  use_box_relative: True   # box-relative geometry channels (the contribution)
+  # low_level_dim omitted -> no C2 lateral; PResNet return_idx stays [1,2,3].

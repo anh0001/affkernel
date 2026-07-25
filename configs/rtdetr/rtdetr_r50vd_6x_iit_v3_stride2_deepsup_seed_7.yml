@@ -1,0 +1,9 @@
+# 3-seed confirm of the deepsup recipe (stride-2 + deep/full-res affordance
+# supervision) — seed 7. Identical to rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml
+# except output_dir. Run with --seed 7. Seed set {42,7,123} matches v3 and
+# stride-2 for like-for-like mean±std (deepsup seed-42 last-epoch EMA 0.8582;
+# stride-2 3-seed 0.8439±0.0019). Confirmation, not exploration: B1/A1/A2 all
+# killed -> this is the paper-headline 3-seed run (expected ~0.867 beta=1).
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_seed_7

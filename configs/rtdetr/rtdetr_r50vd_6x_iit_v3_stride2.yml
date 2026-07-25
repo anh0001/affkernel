@@ -1,0 +1,23 @@
+# v3 + stride-2 affordance mask branch (decoupled-resolution retrain).
+#
+# Tests the diagnosis that the binding accuracy constraint is the affordance
+# mask's readout-AND-supervision resolution. An eval-only probe showed no
+# free win at higher EVAL resolution, but it could not test the binding
+# mechanism, which is the GT being nearest-downsampled to the stride-4 grid in
+# the LOSS (rtdetr_criterion.py:444), a TRAIN-time effect.
+#
+# This run keeps EVERYTHING in the base recipe identical (C2 stride-4 lateral, box-relative
+# geometry channels, reduced_dim 16, 72 ep, batch 4, 640x640, cosine LR,
+# Dice/focal/boundary loss) and changes ONLY the affordance mask branch to
+# stride-2 via mask_upsample_factor=4 (two learned 2x ConvTranspose stages,
+# ~320x320 grid). The DETECTOR is untouched (input stays 640, eval_spatial_size
+# 640), so the real-time/latency budget of detection is unchanged — TRIZ
+# space-separation: localize the resolution cost to the cheap per-query mask
+# decode, isolating it from the detector. Clean isolation of mask-supervision
+# resolution from the input-scale distribution shift that confounded the probe.
+__include__: ['./rtdetr_r50vd_6x_iit_v3.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2
+
+AffordanceBranch:
+  mask_upsample_factor: 4  # stride-4 -> stride-2 (two 2x upsample stages)

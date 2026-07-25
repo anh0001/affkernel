@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      # ruff is configured for py38 in pyproject.toml. Never run --fix in CI:
+      # an accidental py310+ rewrite would break the Python 3.8 runtime.
+      - name: Check
+        run: ruff check src tools tests
+
+  test:
+    name: Unit tests (Python 3.8, CPU)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          cache: pip
+
+      - name: Install CPU-only PyTorch
+        run: |
+          pip install --upgrade pip
+          pip install torch==2.0.1+cpu torchvision==0.15.2+cpu \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install project dependencies
+        run: |
+          # torch/torchvision are already installed above from the CPU index
+          grep -v -E '^(torch|torchvision)([=<>~]|$)' requirements.txt > requirements-ci.txt
+          pip install -r requirements-ci.txt
+
+      # No dataset and no GPU are available on the runner. The suite is designed
+      # so that dataset-dependent tests skip rather than fail in that situation.
+      - name: Run test suite
+        run: python -u -m unittest discover -s tests -v
+
+  imports:
+    name: Byte-compile check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Byte-compile every module
+        run: python -m compileall -q src tools tests

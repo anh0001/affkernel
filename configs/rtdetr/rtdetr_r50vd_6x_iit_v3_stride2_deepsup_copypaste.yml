@@ -1,0 +1,36 @@
+# Targeted copy-paste augmentation of low-AP host objects, applied on top of the
+# deep-supervision recipe.
+#
+# Motivation: our error analysis attributes the largest recoverable share of the
+# remaining gap to a detection-coupling tax, i.e. GT-present (image, class)
+# pairs with no surviving query (worth +0.0245 at beta^2=0.3 if fully
+# recovered). Those misses concentrate on low-AP host objects (bottle->w-grasp,
+# spatula->support, hammer->pound, multi-tool grasp scenes; Spearman host-AP vs
+# miss% = -0.67). Adding one-to-many matching did not reduce them, so they are
+# not supervision-density-bound; this config instead adds example DIVERSITY:
+# the same hard hosts in new contexts, scales and backgrounds.
+#
+# Mechanism: with prob 0.5 per train sample, paste 1-2 donor instances (RGB +
+# per-pixel affordance labels + box) from hard-host images at native resolution
+# before the transform chain. Occluded existing masks are zeroed; placements
+# covering >20% of any existing GT box are re-sampled. Train-time only, so
+# inference is unchanged (~24 ms / 42 FPS). Deep-supervision toggles inherited.
+#
+# The donor set includes cup and knife (cup carries most w-grasp), with
+# scale_jitter up to 1.2, max_overlap 0.2, max_tries 20 and max_frac 0.7.
+# Placement is context-blind and existing boxes are left untouched, following
+# the simple copy-paste formulation. Run with --seed 42 to reproduce our number.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_copypaste
+
+train_dataloader:
+  dataset:
+    copy_paste:
+      prob: 0.5
+      max_pastes: 2
+      donor_classes: [bottle, spatula, hammer, cup, knife]
+      scale_jitter: [0.4, 1.2]
+      max_overlap: 0.2
+      max_tries: 20
+      max_frac: 0.7

@@ -1,0 +1,21 @@
+# Multi-scale FPN mask readout. Replaces the single-level mask_feat
+# (stride-8 encoder -> learned 2x upsamples + additive C2 lateral) with a
+# top-down FPN over C2 (stride-4) + stride-8 + stride-16, fused to stride-4
+# then ONE learned 2x upsample to the SAME stride-2 decode grid. Resolution is
+# held constant vs the stride-2 baseline, so this isolates FEATURE richness as
+# the variable rather than resolution.
+#
+# Motivation: in our miss analysis a large subset of the remaining misses are
+# "box found but mask channels blind", and a frozen linear probe scores only
+# ~0.21 on those missed GT regions, indicating the shared trunk carries little
+# class evidence there.
+#
+# Everything downstream is UNCHANGED: reduced_dim 16, dynamic per-query kernels,
+# deep supervision, full-resolution supervision, detector, matching and the
+# evaluation stack. No dense auxiliary head is used here.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_msreadout
+
+AffordanceBranch:
+  ms_readout: True

@@ -1,0 +1,47 @@
+# UMD Part Affordance Dataset (Myers et al., ICRA 2015) on the deployed IIT
+# recipe: C2 stride-4 lateral + box-relative geometry + stride-2 readout
+# + deep/aux affordance supervision + full-resolution supervision, i.e. the
+# exact model of rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml with the UMD class
+# spaces (17 tool categories + bg; 7 affordances + bg).
+#
+# Protocol target: Mur-Labadia et al. (arXiv:2605.03614) Table 2 / UMD column,
+# whose lineage is the AffordanceNet convention — category (novel-instance)
+# split over ALL 28,843 frames (14,823 train / 14,020 test), top-ranked GT
+# binarized (== *_label.mat single-label map, verified pixel-identical), and
+# F_beta^w with beta^2 = 1 (Myers 2015 states beta=1 explicitly; NOT the 0.3
+# saliency default). Report beta^2=0.3 alongside for our IIT tables.
+#
+# The affordance class count is config-driven: the top-level
+# `num_affordance_classes` below flows (via __share__) into the matcher,
+# criterion and postprocessor; det_engine/det_solver dispatch
+# UMDDetection -> UMDEvaluator (reuses weighted_fbeta_measure from iit_eval).
+# Launch with `--seed 42` to match the seed used for the IIT anchor run.
+__include__: [
+  '../dataset/umd_affordance.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/affkernel_r50vd.yml',
+]
+
+output_dir: ./output/rtdetr_r50vd_6x_umd
+
+# 7 UMD affordances + background. Shared into matcher/criterion/postprocessor;
+# MUST equal AffordanceBranch.output_dim (8) below. IIT configs omit this key
+# and keep the default 10 (byte-identical).
+num_affordance_classes: 8
+
+# Expose backbone C2 (stride-4, 256 ch) for the affordance lateral (v3).
+PResNet:
+  return_idx: [0, 1, 2, 3]
+
+AffordanceBranch:
+  low_level_dim: 256        # ResNet50-d C2 channels (stride-4 lateral, v3)
+  use_box_relative: True    # per-instance (rx, ry, inside) channels (v3)
+  mask_upsample_factor: 4   # stride-2 readout (two 2x ConvTranspose stages)
+  deep_supervision: True    # aux affordance loss on decoder layers 0..L-2
+  output_dim: 8             # 7 UMD affordances + background (IIT uses 10)
+
+SetCriterion:
+  aff_aux_loss_weight: 0.25  # per-aux-layer scale on top of base weight 3
+  aff_full_res_loss: True    # supervise at GT res via logit upsampling

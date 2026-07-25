@@ -1,0 +1,22 @@
+# Test-resolution probe #2 — 704x704 eval of the DEEPSUP checkpoint (no retrain).
+# Midpoint of the 640->800 ladder; isolates whether any miss reduction is
+# monotone in test resolution or an 800-specific artifact. See the 800 probe
+# config for the full rationale + pre-registered decision rule.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/probe_deepsup_res704
+
+HybridEncoder:
+  eval_spatial_size: [704, 704]
+
+RTDETRTransformer:
+  eval_spatial_size: [704, 704]
+
+val_dataloader:
+  dataset:
+    transforms:
+      ops:
+        - {type: Resize, size: [704, 704]}
+        - {type: ToImageTensor}
+        - {type: ConvertDtype}
+  batch_size: 4

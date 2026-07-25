@@ -1,0 +1,6 @@
+# 3-seed confirm of the deepsup recipe (stride-2 + deep/full-res affordance
+# supervision) — seed 123. Identical to rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml
+# except output_dir. Run with --seed 123. See the seed_7 config for rationale.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup_seed_123

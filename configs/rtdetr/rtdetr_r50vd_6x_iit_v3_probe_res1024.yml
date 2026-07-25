@@ -1,0 +1,24 @@
+# Resolution probe — 1024x1024 eval (no retrain).
+#
+# As probe_res800 but at 1024x1024. Smaller val batch to stay within VRAM, since
+# the per-query mask decode scales with K x Hf x Wf and the stride-4 grid is now
+# 256x256. eval_spatial_size overridden in BOTH HybridEncoder and
+# RTDETRTransformer to match the 1024px feature maps.
+__include__: ['./rtdetr_r50vd_6x_iit_v3.yml']
+
+output_dir: ./output/probe_res1024
+
+HybridEncoder:
+  eval_spatial_size: [1024, 1024]
+
+RTDETRTransformer:
+  eval_spatial_size: [1024, 1024]
+
+val_dataloader:
+  dataset:
+    transforms:
+      ops:
+        - {type: Resize, size: [1024, 1024]}
+        - {type: ToImageTensor}
+        - {type: ConvertDtype}
+  batch_size: 2
