@@ -154,7 +154,21 @@ python tools/infer.py \
   -c configs/rtdetr/rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml \
   -r weights/affkernel_iit_r50vd_stride2_deepsup_seed42.pth \
   --input path/to/image.jpg \
-  --output outputs/prediction.png
+  --output outputs/
+```
+
+`--input` takes either a single image or a directory of images. `--output` is a
+**directory**; each result is written as `<stem>_aff.png`. Add `--device cpu` to
+run without a GPU, and `--score-thr` to change the detection threshold
+(default 0.6).
+
+For the example image above this prints:
+
+```
+image.jpg: 3 detection(s) -> outputs/image_aff.png
+    label=2  score=0.979 affordances=[display]          grasp_point=None
+    label=10 score=0.953 affordances=[contain, grasp]   grasp_point=(321, 297)
+    label=6  score=0.946 affordances=[contain, w-grasp] grasp_point=(447, 321)
 ```
 
 The first run downloads ImageNet-pretrained backbone weights from the RT-DETR
