@@ -4,6 +4,7 @@
 
 **Single-pass, NMS-free affordance segmentation for real-time robotic manipulation**
 
+[![CI](https://github.com/anh0001/affkernel/actions/workflows/ci.yml/badge.svg)](https://github.com/anh0001/affkernel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
 [![PyTorch 2.0.1](https://img.shields.io/badge/PyTorch-2.0.1-ee4c2c.svg)](https://pytorch.org/)
