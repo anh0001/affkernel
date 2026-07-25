@@ -181,3 +181,4 @@ cython_debug/
 
 # Internal hardening pipeline report; kept locally, not published
 OSS_HARDENING_STATUS.md
+OSS_REVIEW_LOOP.md
