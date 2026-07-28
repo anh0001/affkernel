@@ -41,7 +41,7 @@ def parse_args():
     p.add_argument("--resume", "-r", required=True)
     p.add_argument("--out", required=True, help="Destination .plan path")
     p.add_argument("--size", type=int, default=640, help="Square input size (default: 640)")
-    p.add_argument("--trtexec", default=None, help="Path to trtexec (default: PATH, then %s)" % DEFAULT_TRTEXEC)
+    p.add_argument("--trtexec", default=None, help=f"Path to trtexec (default: PATH, then {DEFAULT_TRTEXEC})")
     p.add_argument("--keep-onnx", default=None, help="Also write the intermediate ONNX here")
     return p.parse_args()
 
@@ -51,7 +51,7 @@ def find_trtexec(explicit):
         if cand and os.path.exists(cand):
             return cand
     raise FileNotFoundError(
-        "trtexec not found; pass --trtexec explicitly (JetPack ships it at %s)" % DEFAULT_TRTEXEC
+        f"trtexec not found; pass --trtexec explicitly (JetPack ships it at {DEFAULT_TRTEXEC})"
     )
 
 

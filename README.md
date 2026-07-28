@@ -31,6 +31,9 @@ actually afford.
   RoI recompute.
 - **Deterministic and real time.** 23.8 ms median latency, 42 FPS on a single
   RTX 6000 Ada at 640x640, fp32. No ensembling, no stochastic passes.
+- **Runs on the robot, not just the workstation.** 23 FPS end to end on a
+  Jetson AGX Orin in under 250 MiB of GPU memory, for 0.0007 `F_beta^w` — see
+  [Deployment on NVIDIA Jetson](#deployment-on-nvidia-jetson).
 - **Resolution is the lever.** Raising the affordance readout from stride-8 to
   stride-2 moves accuracy far more than any change to mask-head complexity, at
   no added inference cost.
@@ -92,6 +95,29 @@ Predicted affordance regions are better grasp targets than detection-box centres
 <div align="center">
 <img src="docs/assets/pareto_speed_accuracy.png" width="440" alt="Speed and accuracy trade-off against baselines">
 </div>
+
+### Jetson AGX Orin
+
+The released fp32 checkpoint, unmodified, on a Jetson AGX Orin Developer Kit
+(64 GB, JetPack 6.2, MAXN) at 640x640, batch 1. Latency is end-to-end
+`AffordanceModel.infer()` — preprocessing, forward pass, mask decoding and the
+device-to-host copy — measured on the same image, so the rows are comparable to
+each other rather than to the workstation figures above.
+
+| Inference path | Forward | End to end | FPS | Peak GPU | `F_beta^w` (0.3 / 1) |
+|---|---:|---:|---:|---:|---:|
+| fp32, as released | -- | 199.5 ms | 5.0 | 1.29 GiB | 0.8598 / 0.8680 |
+| `--half --cudagraph` | 34.0 ms | 53.2 ms | 18.8 | 0.21 GiB | 0.8596 / 0.8678 |
+| **`--trt-backbone`** | **22.6 ms** | **43.4 ms** | **23.1** | **0.23 GiB** | **0.8591 / 0.8673** |
+
+`F_beta^w` is over the full 2,651-image IIT-AFF test split. The fp32 row is a
+same-machine reference, not a separate claim: it reproduces the published
+0.8582 / 0.8685 for this checkpoint to within 0.0016, which is what licenses
+reading the other rows as deltas. **The fastest path costs 0.0007** — below the
++-0.0009 seed-to-seed spread of the training run itself.
+
+Lowering the input to 512x512 is *not* worth it: it costs 0.007 `F_beta^w`, ten
+times more than fp16 plus TensorRT, to save less time.
 
 ### Qualitative
 
@@ -173,6 +199,99 @@ image.jpg: 3 detection(s) -> outputs/image_aff.png
 
 The first run downloads ImageNet-pretrained backbone weights from the RT-DETR
 release artefacts, so it needs network access.
+
+## Deployment on NVIDIA Jetson
+
+Verified on a **Jetson AGX Orin Developer Kit (64 GB)** running JetPack 6.2
+(L4T R36.4.7, CUDA 12.6, TensorRT 10.3) with Python 3.10, torch 2.8.0 and
+torchvision 0.23.0. Nothing here is Orin-specific — the same flags apply to Orin
+NX/Nano, with proportionally lower throughput.
+
+### 1. Environment
+
+The pinned x86 stack in `requirements.txt` (Python 3.8, torch 2.0.1+cu117) does
+**not** apply on Jetson: use NVIDIA's own aarch64 wheels, which are built
+against the JetPack CUDA. Install everything *except* torch/torchvision from
+the requirements file.
+
+```bash
+sudo nvpmodel -m 0            # MAXN; the numbers above assume it
+
+python3 -m venv ~/.venvs/affkernel
+source ~/.venvs/affkernel/bin/activate
+# torch + torchvision from NVIDIA's Jetson index (see JetPack release notes for
+# the wheel matching your L4T version), then the rest:
+pip install "numpy<2" PyYAML "scipy<1.11" packaging "Pillow<11" matplotlib pycocotools onnx
+```
+
+TensorRT ships with JetPack as a system package rather than a wheel, so a
+virtualenv cannot see it by default. Either create the venv with
+`--system-site-packages`, or point at it per command:
+
+```bash
+export PYTHONPATH=/usr/lib/python3.10/dist-packages   # adjust for your Python
+python -c "import tensorrt; print(tensorrt.__version__)"
+```
+
+### 2. Run
+
+Two GPU-side flags need no extra setup and are safe on any CUDA device:
+
+```bash
+python tools/infer.py \
+  -c configs/rtdetr/rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml \
+  -r weights/affkernel_iit_r50vd_stride2_deepsup_seed42.pth \
+  --input path/to/image.jpg --output outputs/ \
+  --half --cudagraph --gpu-preprocess
+```
+
+- `--half` runs the model in fp16.
+- `--cudagraph` captures the fixed-shape forward pass in a CUDA graph. On
+  embedded GPUs the decoder is launch-bound, and replaying a captured graph is
+  *bit-exact* against the eager forward at the same dtype.
+- `--gpu-preprocess` does the resize and normalisation on the device.
+
+### 3. Optional: TensorRT backbone
+
+The dynamic-kernel affordance head cannot be exported to ONNX, but the backbone
+is plain convolutions and exports cleanly — and it is the single largest term of
+the forward pass. Building it as an fp16 engine, while the encoder, decoder and
+affordance head stay in PyTorch, takes the backbone from 17.7 ms to 5.3 ms:
+
+```bash
+python tools/build_trt_backbone.py \
+  -c configs/rtdetr/rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml \
+  -r weights/affkernel_iit_r50vd_stride2_deepsup_seed42.pth \
+  --out weights/backbone_fp16.plan          # a few minutes
+
+python tools/infer.py \
+  -c configs/rtdetr/rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml \
+  -r weights/affkernel_iit_r50vd_stride2_deepsup_seed42.pth \
+  --input path/to/image.jpg --output outputs/ \
+  --trt-backbone weights/backbone_fp16.plan --gpu-preprocess
+```
+
+`--trt-backbone` implies fp16, and the PyTorch tail is still CUDA-graphed
+against the engine's output buffers, so a frame costs one engine enqueue plus
+one graph replay.
+
+> **Engine files are not portable.** A `.plan` is specific to the GPU, the
+> TensorRT version and the input size it was built for. Rebuild it on the target
+> device; do not copy one between machines. Keep the checkpoint — the engine
+> replaces the backbone at inference only, and training is unaffected.
+
+### As a library
+
+```python
+from tools.infer import AffordanceModel
+
+model = AffordanceModel(config_path, checkpoint_path,
+                        half=True, cudagraph=True, gpu_preprocess=True)
+                        # or: trt_backbone="weights/backbone_fp16.plan"
+
+for det in model.infer(rgb, score_thresh=0.6):
+    det.label, det.score, det.box_xyxy, det.mask   # mask: [H, W] class ids
+```
 
 ## Datasets
 

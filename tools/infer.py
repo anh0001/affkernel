@@ -223,7 +223,13 @@ class AffordanceModel:
         orig_h, orig_w = rgb.shape[:2]
 
         if self._gpu_preprocess:
-            t = torch.from_numpy(np.ascontiguousarray(rgb)).to(self.device)
+            arr = np.ascontiguousarray(rgb)
+            if not arr.flags.writeable:
+                # np.asarray(PIL.Image) hands back a read-only view, which
+                # torch.from_numpy warns about even though this path only ever
+                # reads it. Copying is far cheaper than the forward pass.
+                arr = arr.copy()
+            t = torch.from_numpy(arr).to(self.device)
             im = t.permute(2, 0, 1)[None].float().div_(255.0)
             im = torch.nn.functional.interpolate(
                 im, size=(MODEL_INPUT_SIZE, MODEL_INPUT_SIZE),
