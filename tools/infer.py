@@ -87,6 +87,63 @@ class _GraphedForward:
         return self.static_out
 
 
+class _TRTBackboneForward:
+    """TensorRT backbone + CUDA-graphed PyTorch tail.
+
+    The engine writes into persistent buffers, so the encoder / decoder /
+    affordance head can be captured once against those buffers and replayed:
+    per frame this is one engine enqueue plus one graph replay.
+    """
+
+    def __init__(self, model, plan_path: str):
+        from src.zoo.rtdetr.trt_backbone import TRTBackbone
+
+        self.model = model
+        self.backbone = TRTBackbone(plan_path)
+        n_enc = len(model.encoder.in_channels)
+
+        def tail():
+            feats = self.backbone.outputs
+            # Extra finest level(s) feed the affordance branch only, mirroring
+            # RTDETR.forward's routing.
+            low_level_feat = feats[0] if len(feats) > n_enc else None
+            encoder_output = model.encoder(list(feats[-n_enc:]))
+            decoder_output = model.decoder(encoder_output, None)
+            out = {
+                "pred_logits": decoder_output["pred_logits"],
+                "pred_boxes": decoder_output["pred_boxes"],
+            }
+            aff = model.affordance_branch(
+                decoder_output["features"], encoder_output,
+                low_level_feat=low_level_feat,
+            )
+            out["aff_feat"] = aff["aff_feat"]
+            out["aff_kernel"] = aff["aff_kernel"]
+            out["aff_meta"] = aff["aff_meta"]
+            out["aff_head_type"] = aff.get("aff_head_type", "dynamic")
+            out["aff_box_relative"] = aff.get("aff_box_relative", False)
+            return out
+
+        stream = torch.cuda.Stream()
+        stream.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(stream), torch.no_grad():
+            for _ in range(3):
+                tail()
+        torch.cuda.current_stream().wait_stream(stream)
+        self.graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(self.graph), torch.no_grad():
+            self.static_out = tail()
+
+    @property
+    def input_dtype(self) -> torch.dtype:
+        return self.backbone.input_dtype
+
+    def __call__(self, x: torch.Tensor):
+        self.backbone(x)
+        self.graph.replay()
+        return self.static_out
+
+
 @dataclass(frozen=True)
 class Detection:
     """A single detected object with its affordance mask."""
@@ -109,7 +166,8 @@ class AffordanceModel:
     """
 
     def __init__(self, config_path: str, checkpoint_path: str, device: str | None = None,
-                 half: bool = False, cudagraph: bool = False, gpu_preprocess: bool = False):
+                 half: bool = False, cudagraph: bool = False, gpu_preprocess: bool = False,
+                 trt_backbone: str | None = None):
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu")
         )
@@ -133,11 +191,20 @@ class AffordanceModel:
                         setattr(mod, name, val.to(self.device, tgt))
         self._dtype = dtype
         self.model = model
-        if cudagraph:
+        if trt_backbone:
+            if self.device.type != "cuda":
+                raise ValueError("trt_backbone requires a CUDA device")
+            self.model = _TRTBackboneForward(model, trt_backbone)
+            # The engine fixes the I/O dtype; match the preprocess to it.
+            self._dtype = self.model.input_dtype
+        elif cudagraph:
             if self.device.type != "cuda":
                 raise ValueError("cudagraph=True requires a CUDA device")
             self.model = _GraphedForward(model, MODEL_INPUT_SIZE, dtype)
         self.postprocessor = cfg.postprocessor.eval()  # non-deploy: list-of-dicts
+        self._base_aff_thresh = getattr(
+            self.postprocessor, "affordance_score_thresh", 0.5
+        )
         self._to_tensor = ToTensor()
         # GPU preprocess: upload the raw uint8 frame and resize with bilinear
         # interpolation on-device instead of PIL bicubic on CPU. Matches the
@@ -168,6 +235,12 @@ class AffordanceModel:
             pil = Image.fromarray(rgb).resize((MODEL_INPUT_SIZE, MODEL_INPUT_SIZE))
             im = self._to_tensor(pil)[None].to(self.device, self._dtype)
         orig_size = torch.tensor([[orig_w, orig_h]], device=self.device)
+
+        # Don't pay to decode and upsample masks for detections this call is
+        # about to discard: raise the postprocessor's affordance gate to the
+        # caller's score threshold. Clamped below by the configured gate, so
+        # this only ever removes work, never output.
+        self.postprocessor.affordance_score_thresh = max(score_thresh, self._base_aff_thresh)
 
         outputs = self.model(im)
         results = self.postprocessor(outputs, orig_size)
@@ -285,6 +358,9 @@ def main() -> None:
                         help="Capture the forward pass in a CUDA graph (bit-exact, lower latency)")
     parser.add_argument("--gpu-preprocess", action="store_true",
                         help="Resize/normalize on the GPU (bilinear) instead of PIL on CPU")
+    parser.add_argument("--trt-backbone", default=None, metavar="PLAN",
+                        help="Run the backbone as a TensorRT engine built by "
+                             "tools/build_trt_backbone.py (implies fp16 + CUDA graph)")
     args = parser.parse_args()
 
     from PIL import Image
@@ -292,8 +368,10 @@ def main() -> None:
     images = collect_images(args.input)
     os.makedirs(args.output, exist_ok=True)
     model = AffordanceModel(args.config, args.resume, device=args.device,
-                            half=args.half, cudagraph=args.cudagraph,
-                            gpu_preprocess=args.gpu_preprocess)
+                            half=args.half or bool(args.trt_backbone),
+                            cudagraph=args.cudagraph,
+                            gpu_preprocess=args.gpu_preprocess,
+                            trt_backbone=args.trt_backbone)
 
     for image_path in images:
         rgb = np.array(Image.open(image_path).convert("RGB"))

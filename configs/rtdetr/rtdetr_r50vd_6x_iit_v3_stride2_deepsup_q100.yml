@@ -1,0 +1,10 @@
+# Query-budget probe — 100 decoder queries instead of 300 (eval only).
+#
+# learnt_init_query is False, so queries are the encoder's top-k proposals and
+# num_queries is freely changeable at inference. num_top_queries stays 50.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/probe_deepsup_q100
+
+RTDETRTransformer:
+  num_queries: 100

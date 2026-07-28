@@ -1,0 +1,13 @@
+# Decoder early-exit probe — stop after decoder layer 3 of 6 (eval only).
+#
+# Legitimate for THIS checkpoint because (a) score/bbox heads are per-layer and
+# aux-supervised, and (b) the affordance kernel head is SHARED across layers and
+# was trained on the intermediate layers by deep supervision. The affordance
+# branch reads decoder_features[:, -1], which under eval_idx=2 is layer 2's
+# output. No retrain; strictly an inference-time latency/accuracy knob.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/probe_deepsup_exit2
+
+RTDETRTransformer:
+  eval_idx: 2
