@@ -220,10 +220,14 @@ class RTDETRPostProcessor(nn.Module):
 
             # Non-retained queries get an all-background mask so per-query
             # alignment with scores/labels in the evaluator is preserved.
+            # uint8 holds every affordance class id (<= 255 channels) and cuts
+            # this buffer ~8x: at top_k=50 and 640x480 it is 15 MiB per frame
+            # instead of 117 MiB, which is pure allocate-and-zero traffic for
+            # the queries that end up all-background anyway.
             for b in range(batch_size):
                 w, h = int(orig_target_sizes[b][0]), int(orig_target_sizes[b][1])
                 masks = torch.zeros(
-                    (top_k, h, w), dtype=torch.long, device=probs.device
+                    (top_k, h, w), dtype=torch.uint8, device=probs.device
                 )
                 keep = keep_all[b].nonzero(as_tuple=True)[0]
                 if keep.numel() > 0:
@@ -231,7 +235,7 @@ class RTDETRPostProcessor(nn.Module):
                         probs[batch_index == b], size=(h, w),
                         mode='bilinear', align_corners=False,
                     )  # [n_keep, C, H, W]
-                    masks[keep] = up.argmax(dim=1).long()
+                    masks[keep] = up.argmax(dim=1).to(torch.uint8)
                 resized_affordances[b] = masks
 
         # Handle deploy mode - return single tensors
