@@ -1,0 +1,21 @@
+# Test-resolution probe — 512x512 eval of the DEEPSUP checkpoint (no retrain).
+# Latency-oriented: measures how much accuracy a smaller eval resolution costs
+# on Jetson-class hardware, mirroring the 704/800 upward probes downward.
+__include__: ['./rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml']
+
+output_dir: ./output/probe_deepsup_res512
+
+HybridEncoder:
+  eval_spatial_size: [512, 512]
+
+RTDETRTransformer:
+  eval_spatial_size: [512, 512]
+
+val_dataloader:
+  dataset:
+    transforms:
+      ops:
+        - {type: Resize, size: [512, 512]}
+        - {type: ToImageTensor}
+        - {type: ConvertDtype}
+  batch_size: 4
