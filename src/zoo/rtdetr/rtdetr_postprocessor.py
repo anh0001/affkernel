@@ -173,16 +173,24 @@ class RTDETRPostProcessor(nn.Module):
             top_k = query_indices.shape[1]
             out_dim = self.num_affordance_classes
 
-            # Flatten the (batch, top-k query) selection and decode masks ONLY
+            # Score gate, applied BEFORE decoding. Queries below the gate get an
+            # all-background mask anyway, so decoding only the survivors is
+            # byte-identical to decoding all top-k and discarding — it just
+            # skips the (dominant) per-query dynamic-conv + softmax cost.
+            score_thr = getattr(self, 'affordance_score_thresh', 0.5)
+            keep_all = scores >= score_thr  # [B, top_k]
+
+            # Flatten the (batch, kept query) selection and decode masks ONLY
             # for those queries — never a dense [Q, C, H, W] tensor.
-            batch_index = (
+            batch_index_full = (
                 torch.arange(batch_size, device=kernels_all.device)
                 .unsqueeze(1)
                 .repeat(1, top_k)
-                .flatten()
             )
-            flat_q = query_indices.flatten()
-            sel_kernels = kernels_all[batch_index, flat_q]  # [B*top_k, n_params]
+            keep_flat = keep_all.flatten()
+            batch_index = batch_index_full.flatten()[keep_flat]
+            flat_q = query_indices.flatten()[keep_flat]
+            sel_kernels = kernels_all[batch_index, flat_q]  # [n_keep, n_params]
             # Dispatch on head type — 'dynamic' (default, dynamic-conv kernels)
             # vs 'embedding' (MaskFormer-style A5 ablation).
             head_type = outputs.get('aff_head_type', 'dynamic')
@@ -202,24 +210,16 @@ class RTDETRPostProcessor(nn.Module):
                 batch_index=batch_index,
                 output_dim=out_dim,
                 boxes=sel_boxes,
-            )  # [B*top_k, out_dim, Hf, Wf]
+            )  # [n_keep_total, out_dim, Hf, Wf]
             # Keep SOFT probabilities — argmax at the coarse Hf x Wf grid and
             # then nearest-upsampling hard labels destroys boundaries, which a
             # boundary-weighted metric (F_beta^w) punishes hard. Instead
             # bilinearly upsample the probability maps to full resolution and
             # argmax there.
-            probs = decoded.softmax(dim=1)  # [B*top_k, C, Hf, Wf]
-            probs = probs.view(batch_size, top_k, out_dim, *probs.shape[-2:])
+            probs = decoded.softmax(dim=1)  # [n_keep_total, C, Hf, Wf]
 
-            # Only export masks for queries that pass the detection-score gate.
-            # Decoding/upsampling every top-k query and unioning them in the
-            # evaluator turns weak/duplicate detections into spurious
-            # foreground (score-blind union). Non-retained queries get an
-            # all-background mask so per-query alignment with scores/labels in
-            # the evaluator is preserved.
-            score_thr = getattr(self, 'affordance_score_thresh', 0.5)
-            keep_all = scores >= score_thr  # [B, top_k]
-
+            # Non-retained queries get an all-background mask so per-query
+            # alignment with scores/labels in the evaluator is preserved.
             for b in range(batch_size):
                 w, h = int(orig_target_sizes[b][0]), int(orig_target_sizes[b][1])
                 masks = torch.zeros(
@@ -228,7 +228,7 @@ class RTDETRPostProcessor(nn.Module):
                 keep = keep_all[b].nonzero(as_tuple=True)[0]
                 if keep.numel() > 0:
                     up = torch.nn.functional.interpolate(
-                        probs[b, keep], size=(h, w),
+                        probs[batch_index == b], size=(h, w),
                         mode='bilinear', align_corners=False,
                     )  # [n_keep, C, H, W]
                     masks[keep] = up.argmax(dim=1).long()
