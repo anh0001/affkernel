@@ -296,7 +296,14 @@ class HybridEncoder(nn.Module):
                     pos_embed = self.build_2d_sincos_position_embedding(
                         w, h, self.hidden_dim, self.pe_temperature).to(src_flatten.device)
                 else:
-                    pos_embed = getattr(self, f'pos_embed{enc_ind}', None).to(src_flatten.device)
+                    # Cache the precomputed pos-embed on the compute device:
+                    # the plain attribute is created on CPU at init, and an
+                    # uncached .to(device) re-issues a blocking H2D copy every
+                    # forward (and breaks CUDA-graph capture).
+                    pos_embed = getattr(self, f'pos_embed{enc_ind}', None)
+                    if pos_embed is not None and pos_embed.device != src_flatten.device:
+                        pos_embed = pos_embed.to(src_flatten.device)
+                        setattr(self, f'pos_embed{enc_ind}', pos_embed)
 
                 memory = self.encoder[i](src_flatten, pos_embed=pos_embed)
                 proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
