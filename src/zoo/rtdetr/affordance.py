@@ -63,6 +63,37 @@ N_BOX_REL_CHANNELS = 3
 # dynamic kernel's input bounded.
 _REL_CLAMP = 4.0
 
+# Coordinate grids depend only on (h, w, device, dtype), but mask decoding
+# rebuilds them per call — which at inference means per frame, per decode.
+# Cache them; the entries are a few hundred KB and the key set is tiny (one
+# readout resolution per model).
+_GRID_CACHE: dict = {}
+
+
+def _pixel_grids(h: int, w: int, device, dtype):
+    """Cached normalised pixel-centre grids ``(gy, gx)``, each ``[h, w]`` in [0, 1]."""
+    key = ("pix", h, w, device, dtype)
+    grids = _GRID_CACHE.get(key)
+    if grids is None:
+        xs = (torch.arange(w, device=device, dtype=dtype) + 0.5) / w
+        ys = (torch.arange(h, device=device, dtype=dtype) + 0.5) / h
+        grids = torch.meshgrid(ys, xs, indexing="ij")
+        _GRID_CACHE[key] = grids
+    return grids
+
+
+def _coord_channels(h: int, w: int, device, dtype):
+    """Cached CoordConv channels ``[1, 2, h, w]`` spanning [-1, 1]."""
+    key = ("coord", h, w, device, dtype)
+    coords = _GRID_CACHE.get(key)
+    if coords is None:
+        ys = torch.linspace(-1, 1, h, device=device, dtype=dtype)
+        xs = torch.linspace(-1, 1, w, device=device, dtype=dtype)
+        gy, gx = torch.meshgrid(ys, xs, indexing="ij")
+        coords = torch.stack([gx, gy], dim=0).unsqueeze(0)
+        _GRID_CACHE[key] = coords
+    return coords
+
 
 def _dynamic_layer_sizes(in_ch: int, hidden: int, out_ch: int):
     """Weight/bias param counts for the 2-layer 1x1 dynamic conv."""
@@ -87,9 +118,7 @@ def _box_relative_channels(boxes: torch.Tensor, h: int, w: int, device, dtype) -
     rx/ry are clamped to ``[-_REL_CLAMP, _REL_CLAMP]`` so tiny boxes stay bounded.
     """
     n = boxes.shape[0]
-    xs = (torch.arange(w, device=device, dtype=dtype) + 0.5) / w
-    ys = (torch.arange(h, device=device, dtype=dtype) + 0.5) / h
-    gy, gx = torch.meshgrid(ys, xs, indexing="ij")  # [H, W] each, in [0, 1]
+    gy, gx = _pixel_grids(h, w, device, dtype)  # [H, W] each, in [0, 1]
     cx = boxes[:, 0].view(n, 1, 1)
     cy = boxes[:, 1].view(n, 1, 1)
     bw = boxes[:, 2].view(n, 1, 1).clamp(min=1e-3)
@@ -440,14 +469,34 @@ def decode_affordance_masks(
         return aff_feat.new_zeros((0, output_dim, aff_feat.shape[-2], aff_feat.shape[-1]))
 
     b, c, h, w = aff_feat.shape
-    # Append CoordConv channels (recomputed cheaply, matches forward()).
-    ys = torch.linspace(-1, 1, h, device=aff_feat.device, dtype=aff_feat.dtype)
-    xs = torch.linspace(-1, 1, w, device=aff_feat.device, dtype=aff_feat.dtype)
-    gy, gx = torch.meshgrid(ys, xs, indexing="ij")
-    coords = torch.stack([gx, gy], dim=0).unsqueeze(0).expand(b, -1, -1, -1)
+    # Append CoordConv channels (cached grid, matches forward()).
+    coords = _coord_channels(h, w, aff_feat.device, aff_feat.dtype).expand(b, -1, -1, -1)
     feat = torch.cat([aff_feat, coords], dim=1)  # [B, reduced_dim+2, H, W]
 
-    selected = feat[batch_index]  # [N, reduced_dim+2, H, W]
+    n_shared = feat.shape[1]
+    dyn_in = n_shared + (N_BOX_REL_CHANNELS if boxes is not None else 0)
+    hidden = _infer_dyn_hidden(kernels.shape[1], dyn_in, output_dim)
+    (w1, b1), (w2, b2) = _split_dynamic_params(kernels, dyn_in, output_dim, hidden)
+    w1 = w1.reshape(n, hidden, dyn_in)      # drop the trailing 1x1 spatial dims
+    w2 = w2.reshape(n, output_dim, hidden)
+
+    # Per-instance 1x1 convs are, for a 1x1 kernel, exactly a batched matmul
+    # over the flattened spatial axis. baddbmm hits cuBLAS batched GEMM, which
+    # is markedly faster than a grouped conv2d at these shapes; it also lets
+    # the shared (image-level) and per-instance (box-relative) input channels
+    # be contracted separately, so the shared feature map is never replicated
+    # N times just to be consumed by a grouped conv.
+    hw = h * w
+    shared = feat.reshape(b, n_shared, hw)
+    # [N, hidden, HW] = W1_shared @ feat[batch_index] + bias
+    if b == 1:
+        # Single image (the inference case): every query reads the same feature
+        # map, so broadcast instead of gathering N copies of it.
+        x = torch.matmul(w1[:, :, :n_shared], shared[0]).add_(b1.unsqueeze(-1))
+    else:
+        x = torch.baddbmm(
+            b1.unsqueeze(-1), w1[:, :, :n_shared], shared[batch_index]
+        )
     if boxes is not None:
         rel = _box_relative_channels(
             boxes.to(aff_feat.device, aff_feat.dtype),
@@ -456,18 +505,9 @@ def decode_affordance_masks(
             aff_feat.device,
             aff_feat.dtype,
         )  # [N, N_BOX_REL_CHANNELS, H, W]
-        selected = torch.cat([selected, rel], dim=1)
-    dyn_in = selected.shape[1]
-    hidden = _infer_dyn_hidden(kernels.shape[1], dyn_in, output_dim)
-    (w1, b1), (w2, b2) = _split_dynamic_params(kernels, dyn_in, output_dim, hidden)
-
-    # Per-instance 1x1 conv implemented via grouped conv over N instances.
-    x = selected.reshape(1, n * dyn_in, h, w)
-    w1 = w1.reshape(n * hidden, dyn_in, 1, 1)
-    x = F.conv2d(x, w1, b1.reshape(-1), groups=n)
+        x = x.baddbmm_(w1[:, :, n_shared:], rel.reshape(n, N_BOX_REL_CHANNELS, hw))
     x = F.relu(x)
-    w2 = w2.reshape(n * output_dim, hidden, 1, 1)
-    x = F.conv2d(x, w2, b2.reshape(-1), groups=n)
+    x = torch.baddbmm(b2.unsqueeze(-1), w2, x)
     return x.reshape(n, output_dim, h, w)
 
 
