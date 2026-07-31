@@ -29,8 +29,9 @@ actually afford.
   high-resolution affordance map. Only matched (training) or top-*K* (inference)
   queries are decoded, so there is no region-proposal stage and no per-instance
   RoI recompute.
-- **Deterministic and real time.** 23.8 ms median latency, 42 FPS on a single
-  RTX 6000 Ada at 640x640, fp32. No ensembling, no stochastic passes.
+- **Deterministic and real time.** 16.3 ms median latency, 62 FPS on a single
+  RTX 6000 Ada at 640x640, fp32 — 12.7 ms and 78 FPS with fp16, CUDA graphs and
+  folded BatchNorm. No ensembling, no stochastic passes.
 - **Runs on the robot, not just the workstation.** 23 FPS end to end on a
   Jetson AGX Orin in under 250 MiB of GPU memory, for 0.0007 `F_beta^w` — see
   [Deployment on NVIDIA Jetson](#deployment-on-nvidia-jetson).
@@ -50,13 +51,13 @@ checkpoint selection is fixed a priori rather than tuned on the test set.
 
 | Model | `F_beta^w` (beta^2=1) | `F_beta^w` (beta^2=0.3) | Latency | Deterministic |
 |---|---:|---:|---:|:--:|
-| **AffKernel (R50vd, stride-2 + deep sup.)** | **0.8675 ± 0.0009** | 0.8574 ± 0.0008 | **23.8 ms** | yes |
+| **AffKernel (R50vd, stride-2 + deep sup.)** | **0.8675 ± 0.0009** | 0.8574 ± 0.0008 | **16.3 ms** | yes |
 | Mask R-CNN (reported) | 0.844 | -- | 45 ms | yes |
 | Deterministic Swin-T (reported) | 0.883 | -- | 42 ms | yes |
 | Bayesian Swin-T deep ensemble (reported) | 0.906 | -- | ~1015 ms | no |
 
-AffKernel improves on the Mask R-CNN baseline at roughly half its latency, and
-runs at about 57% of the deterministic Swin-T's latency while trailing it by
+AffKernel improves on the Mask R-CNN baseline at roughly a third of its latency,
+and runs at about 39% of the deterministic Swin-T's latency while trailing it by
 1.55 points. Peer numbers are quoted from their publications; see
 [`docs/reproduction.md`](docs/reproduction.md) for the protocol caveats that
 apply when comparing across papers, in particular the beta convention.
@@ -92,17 +93,59 @@ Predicted affordance regions are better grasp targets than detection-box centres
 | Affordance-selected point | **93.3%** | **67.5%** |
 | Detection-box centre | 47.7% | 44.2% |
 
-<div align="center">
-<img src="docs/assets/pareto_speed_accuracy.png" width="440" alt="Speed and accuracy trade-off against baselines">
-</div>
+### RTX 6000 Ada
+
+**Model only** — forward pass plus postprocessing. This is the protocol behind
+the latency column above and throughout the paper. Batch 1, 640x640, fp32 unless
+noted; *optimized* means fp16 with CUDA graphs and folded BatchNorm.
+
+| Configuration | Median | FPS | Peak GPU |
+|---|---:|---:|---:|
+| Previous code path, stride-2 | 24.1 ms | 41.4 | 1319 MiB |
+| stride-4 | 15.2 ms | 65.9 | 421 MiB |
+| **stride-2 (headline)** | **16.3 ms** | **61.5** | **442 MiB** |
+| stride-4, optimized | 11.4 ms | 87.6 | 272 MiB |
+| **stride-2, optimized** | **12.7 ms** | **78.4** | **284 MiB** |
+
+Raising the readout from stride-4 to stride-2 costs 1.1 ms and 21 MiB — the
+resolution lever is close to free at inference time, which is the point.
+
+Decoding more queries is also close to free, because the expensive affordance
+map is computed once and shared (stride-2, fp32):
+
+| Top-*K* | 50 | 100 | 150 | 300 |
+|---|---:|---:|---:|---:|
+| Median | 16.3 ms | 16.3 ms | 16.4 ms | 16.5 ms |
+| Peak GPU | 443 MiB | 492 MiB | 542 MiB | 692 MiB |
+
+**End to end** — preprocessing, forward pass, mask decoding and the
+device-to-host copy, via `AffordanceModel.infer()`:
+
+| Inference path | End to end | FPS | Peak GPU | `F_beta^w` (0.3 / 1) |
+|---|---:|---:|---:|---:|
+| fp32, as released | 35.7 ms | 28.0 | 0.43 GiB | 0.8582 / 0.8685 |
+| **fp16 + CUDA graph + BN fold** | **16.0 ms** | **62.7** | **0.29 GiB** | **0.8577 / 0.8680** |
+
+The fastest path costs **0.0005** `F_beta^w` at beta^2=1 — below the +-0.0009
+seed-to-seed spread of the training run itself.
+
+> **On the memory column.** Peak GPU is `torch.cuda.max_memory_allocated()` with
+> a *single* resident input tensor. Earlier revisions of this table were measured
+> while the benchmark held all 210 decoded evaluation images on the device
+> (~984 MiB in fp32), so those figures counted the harness's input buffers as
+> well as the model. Relative comparisons were unaffected — the contamination was
+> a constant offset — but the absolute values were inflated by about 1 GiB.
+> `tools/bench_latency_size.py` still pre-loads its images, so read its memory
+> output with that in mind.
 
 ### Jetson AGX Orin
 
 The released fp32 checkpoint, unmodified, on a Jetson AGX Orin Developer Kit
 (64 GB, JetPack 6.2, MAXN) at 640x640, batch 1. Latency is end-to-end
 `AffordanceModel.infer()` — preprocessing, forward pass, mask decoding and the
-device-to-host copy — measured on the same image, so the rows are comparable to
-each other rather than to the workstation figures above.
+device-to-host copy — measured on the same image, so these rows are directly
+comparable to the RTX 6000 Ada end-to-end table above, and not to the model-only
+figures.
 
 | Inference path | Forward | End to end | FPS | Peak GPU | `F_beta^w` (0.3 / 1) |
 |---|---:|---:|---:|---:|---:|
