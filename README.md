@@ -323,6 +323,17 @@ one graph replay.
 > device; do not copy one between machines. Keep the checkpoint — the engine
 > replaces the backbone at inference only, and training is unaffected.
 
+A prebuilt engine for one specific configuration — AGX Orin, JetPack 6.2, TensorRT
+10.3, 640x640 — ships alongside the checkpoint on the Hub, as a convenience for
+identical setups:
+
+```bash
+hf download anhrisn/affkernel-iit-aff backbone_fp16.plan --local-dir weights/
+```
+
+If your device, JetPack/TensorRT version or input size differs in any respect,
+build your own with the command above instead. That is the supported path.
+
 ### As a library
 
 ```python
@@ -393,6 +404,14 @@ resolution ladder, is listed in [`docs/reproduction.md`](docs/reproduction.md).
 | Model | Dataset | `F_beta^w` (beta^2=1) | Download |
 |---|---|---:|---|
 | AffKernel R50vd, stride-2 + deep sup., seed 42 | IIT-AFF | 0.8685 | [Hugging Face](https://huggingface.co/anhrisn/affkernel-iit-aff) |
+| &nbsp;&nbsp;+ TensorRT fp16 backbone engine, Jetson AGX Orin | IIT-AFF | 0.8673 | [`backbone_fp16.plan`](https://huggingface.co/anhrisn/affkernel-iit-aff/blob/main/backbone_fp16.plan) |
+
+The second row is a **deployment artifact, not a separate model**: an fp16
+TensorRT engine for the backbone alone, built for a Jetson AGX Orin on JetPack 6.2
+with TensorRT 10.3 at 640x640. It ships in the same Hub repository, still needs
+the checkpoint in the first row, and is not portable off that exact configuration
+— see [Optional: TensorRT backbone](#3-optional-tensorrt-backbone). Its 0.8673 is
+end-to-end on the IIT-AFF test split, 0.0007 below the fp32 checkpoint.
 
 The released checkpoint is seed 42, which is both the primary anchor seed used
 throughout the paper and the highest-scoring of the three seeds (seed 7: 0.8668,
