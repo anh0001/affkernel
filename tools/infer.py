@@ -163,11 +163,16 @@ class AffordanceModel:
         cudagraph: capture the fixed-shape forward pass in a CUDA graph,
             eliminating per-kernel launch overhead (bit-exact vs eager at the
             same dtype). Requires CUDA.
+        fuse_conv_bn: fold the frozen / eval-mode batch norms into their
+            preceding convolutions (exact reparameterisation up to float
+            rounding, done in fp32 before any half cast). Removes ~95
+            pointwise norm passes per forward; pure memory traffic, so the
+            saving is largest on bandwidth-limited devices like Jetson.
     """
 
     def __init__(self, config_path: str, checkpoint_path: str, device: str | None = None,
                  half: bool = False, cudagraph: bool = False, gpu_preprocess: bool = False,
-                 trt_backbone: str | None = None):
+                 trt_backbone: str | None = None, fuse_conv_bn: bool = False):
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu")
         )
@@ -180,7 +185,14 @@ class AffordanceModel:
         cfg.model.load_state_dict(state)
 
         dtype = torch.half if half else torch.float32
-        model = cfg.model.deploy().to(self.device, dtype).eval()
+        model = cfg.model.deploy()
+        if fuse_conv_bn:
+            # Fold while the weights are still fp32 so the reparameterisation
+            # arithmetic is exact; only the final store rounds.
+            from src.nn.fuse import fuse_conv_norm
+
+            fuse_conv_norm(model)
+        model = model.to(self.device, dtype).eval()
         if half:
             # Module.to(dtype) skips plain-attribute tensors (precomputed
             # pos-embeds / anchors); align their dtype and device too.
@@ -367,6 +379,9 @@ def main() -> None:
     parser.add_argument("--trt-backbone", default=None, metavar="PLAN",
                         help="Run the backbone as a TensorRT engine built by "
                              "tools/build_trt_backbone.py (implies fp16 + CUDA graph)")
+    parser.add_argument("--fuse-conv-bn", action="store_true",
+                        help="Fold frozen batch norms into their convolutions "
+                             "(exact up to float rounding; biggest win on Jetson)")
     args = parser.parse_args()
 
     from PIL import Image
@@ -377,7 +392,8 @@ def main() -> None:
                             half=args.half or bool(args.trt_backbone),
                             cudagraph=args.cudagraph,
                             gpu_preprocess=args.gpu_preprocess,
-                            trt_backbone=args.trt_backbone)
+                            trt_backbone=args.trt_backbone,
+                            fuse_conv_bn=args.fuse_conv_bn)
 
     for image_path in images:
         rgb = np.array(Image.open(image_path).convert("RGB"))
