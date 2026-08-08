@@ -60,7 +60,7 @@ Weighted F-measure `F_beta^w` (Margolin et al.), mean over three training seeds
 
 | Model | `F_beta^w` (beta^2=1) | `F_beta^w` (beta^2=0.3) | Latency | Deterministic |
 |---|---:|---:|---:|:--:|
-| **AffKernel (R50vd, stride-2 + deep sup.)** | **0.8675 ± 0.0009** | 0.8574 ± 0.0008 | **16.3 ms** | yes |
+| **AffKernel (R50vd, full model)** | **0.8675 ± 0.0009** | 0.8574 ± 0.0008 | **16.3 ms** | yes |
 | Mask R-CNN (reported) | 0.844 | -- | 45 ms | yes |
 | Deterministic Swin-T (reported) | 0.883 | -- | 42 ms | yes |
 | Bayesian Swin-T deep ensemble (reported) | 0.906 | -- | ~1015 ms | no |
@@ -89,7 +89,16 @@ The detector is untouched across these rows; only the affordance readout changes
 | stride-8 | 0.7518 |
 | stride-4 | 0.8269 |
 | stride-2 | 0.8542 ± 0.0016 |
-| stride-2 + deep supervision | **0.8675 ± 0.0009** |
+| stride-2 + auxiliary readout losses (full model) | **0.8675 ± 0.0009** |
+
+The first three rungs are trained without the auxiliary readout losses, which
+add a further +0.0133. Those losses are two training-only terms: the shared
+dynamic-kernel head also decodes the five intermediate decoder layers, each
+entering the objective at 0.25 of the final-layer weight, and the mask loss is
+evaluated on the annotation grid by upsampling the logits inside the loss rather
+than downsampling the ground truth, which would alias thin structures. Both use
+training-set annotations only, and their auxiliary heads are discarded at
+inference, so the deployed graph is unchanged.
 
 ### UMD Part-Affordance
 
@@ -438,7 +447,7 @@ resolution ladder, is listed in [`docs/reproduction.md`](docs/reproduction.md).
 
 | Model | Dataset | `F_beta^w` (beta^2=1) | Download |
 |---|---|---:|---|
-| AffKernel R50vd, stride-2 + deep sup., seed 42 | IIT-AFF | 0.8685 | [Hugging Face](https://huggingface.co/anhrisn/affkernel-iit-aff) |
+| AffKernel R50vd, full model, seed 42 | IIT-AFF | 0.8685 | [Hugging Face](https://huggingface.co/anhrisn/affkernel-iit-aff) |
 | &nbsp;&nbsp;+ TensorRT fp16 backbone engine, Jetson AGX Orin | IIT-AFF | 0.8673 | [`backbone_fp16.plan`](https://huggingface.co/anhrisn/affkernel-iit-aff/blob/main/backbone_fp16.plan) |
 
 The second row is a **deployment artifact, not a separate model**: an fp16

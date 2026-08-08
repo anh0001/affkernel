@@ -13,7 +13,10 @@ Reference hardware for all timing numbers: one NVIDIA RTX 6000 Ada, fp32.
 
 The headline configuration is
 `configs/rtdetr/rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml`: a stride-2
-affordance readout with deep supervision, trained for 72 epochs.
+affordance readout with the auxiliary readout losses, trained for 72 epochs.
+(The `deepsup` in the filename is the historical identifier for those losses;
+config, checkpoint and export filenames keep it so the documented commands
+continue to work.)
 
 ### Train
 
