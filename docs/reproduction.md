@@ -92,8 +92,9 @@ This is the single most important protocol detail when comparing across papers.
 The weighted F-measure of Margolin et al. takes a `beta` parameter. Two
 conventions are in circulation:
 
-- **`beta^2 = 0.3`** weights precision more heavily. Used by AffordanceNet and
-  its descendants.
+- **`beta^2 = 0.3`** weights precision more heavily. Inherited from the released
+  AffordanceNet evaluation code rather than stated in that paper, and carried
+  forward by its descendants.
 - **`beta^2 = 1`** weights precision and recall equally. Used by recent
   transformer baselines.
 
@@ -119,7 +120,9 @@ CUDA_VISIBLE_DEVICES=0 python tools/bench_latency_size.py \
   --out outputs/bench.json
 ```
 
-Expected at 640x640: median 23.8 ms, p95 24.4 ms, 41.7 img/s, peak 1851 MiB.
+Expected at 640x640: median 16.3 ms, p95 16.4 ms, 61.5 img/s, peak 442 MiB.
+(The superseded code path measured 24.1 ms and 1319 MiB at stride-2; if you see
+those figures you are not running the current path.)
 
 Query-budget sweep (the top-*K* efficiency table):
 
@@ -148,8 +151,9 @@ changes, so the comparison isolates readout resolution from detector capacity.
 | stride-2 + deep sup. | `rtdetr_r50vd_6x_iit_v3_stride2_deepsup.yml` | 0.8675 ± 0.0009 |
 
 The knob is `AffordanceBranch.mask_upsample_factor`: 1 = stride-8, 2 = stride-4,
-4 = stride-2. Raising it costs nothing at inference time, which is the point of
-the result.
+4 = stride-2. Raising it from stride-4 to stride-2 costs +1.1 ms (+7%) and
++21 MiB, which is small relative to the accuracy it buys, and that is the point
+of the result.
 
 ---
 
@@ -171,7 +175,15 @@ python tools/decompose_fbw_gap.py \
   -r output/rtdetr_r50vd_6x_umd/checkpoint.pth --beta2 1.0
 ```
 
-Expected: 0.8752 on the full test split, 0.8799 on the human-annotated subset.
+Expected: 0.8752 ± 0.0049 on the full test split, 0.8799 ± 0.0048 on the
+human-annotated subset. Those are three-seed means (42, 7, 123); the single
+seed-42 command above reproduces one draw from that spread, not the mean.
+
+The human-annotated subset is identified as every third frame; that selection
+is a documented approximation of the original protocol. Peer UMD numbers in the
+literature come from a compilation whose split, ground-truth handling and beta
+convention are not stated, so our rows use a reconstructed AffordanceNet-lineage
+protocol and cross-paper UMD comparisons carry that caveat.
 
 Note that `tools/rescore_fbw_beta.py` is IIT-only and will reject a UMD dataset.
 
@@ -188,12 +200,18 @@ python tools/eval_grasp_point.py \
   -r output/rtdetr_r50vd_6x_iit_v3_stride2_deepsup/checkpoint.pth
 ```
 
-Expected: the affordance-selected point falls inside the annotated grasp region
-in 93.3% of cases, against 47.7% for the box centre.
+> **Known issue, numbers withheld.** The loop in `tools/eval_grasp_point.py`
+> increments its counter only after a successful detection and skips images with
+> no detection, so the denominator is "images with a detection", not "images".
+> The reported hit rate is therefore conditional and overstates the
+> unconditional rate. The margin over the box centre survives either way, but
+> the absolute figures are being re-measured and are withheld until then.
 
-The pose-jittered Isaac Sim arm evaluation (67.5% vs 44.2%) requires an Isaac
-Sim 4.2 installation and a robot description that are not part of this
-repository; those scripts are kept in the authors' research repository.
+The pose-jittered Isaac Sim arm evaluation requires an Isaac Sim 4.2
+installation and a robot description that are not part of this repository;
+those scripts are kept in the authors' research repository. In the paper that
+evaluation reports 68.3% (95% CI [50.0, 85.8]) for the affordance point against
+44.2% ([25.8, 62.5]) for the box centre, over 24 images x 5 jittered poses.
 
 ---
 
@@ -225,6 +243,14 @@ codebase therefore fixes checkpoint selection a priori: the last epoch, EMA
 weights. No number reported here was obtained by scanning epochs for the best
 test score. Results from a protocol that does select on test are not comparable.
 
+That safeguard is deliberately narrow, and it should not be read as a clean bill
+of health. It fixes *which epoch* is reported; it does not control the broader
+adaptive use of the test split. The same IIT-AFF test set that produces the
+headline also informed the recipe as it evolved, the component comparisons, and
+the choice of reported configuration. The IIT-AFF results are therefore
+exploratory evidence from a single benchmark rather than a confirmatory estimate
+of generalisation.
+
 **EMA weights are what is evaluated.** `--test-only` and every scoring tool read
 `ema.module`. A checkpoint repacked into a bare `{"model": ...}` dict will
 evaluate a freshly initialised EMA module under an EMA-enabled config and score
@@ -240,8 +266,11 @@ offline run.
 transform pipeline, training applies a random square resize in `[480, 800]` per
 iteration inside the model's forward pass. Evaluation is fixed at 640x640.
 
-**fp32 only.** All reported accuracy and latency are fp32. fp16 and TensorRT
-are untested here.
+**fp32 is the default; the optimized paths are measured separately.** All
+headline accuracy and the headline latency are fp32. The fp16 + CUDA-graph +
+folded-BatchNorm path (12.8 ms, 78.4 img/s) and the TensorRT-backbone path used
+for the Jetson AGX Orin deployment (43.4 ms, 23.1 FPS, 0.23 GiB) are measured
+and documented in the README, not untested.
 
 ---
 

@@ -80,6 +80,31 @@ Several of these reached AffKernel by way of RT-DETR, which had already
 modified them; they are therefore attributable to both upstreams and are listed
 in both sections where that applies.
 
+## Further upstreams reached through RT-DETR
+
+These are transitive lineages that the sections above did not name explicitly.
+No code was taken from them directly; each arrived through RT-DETR.
+
+- **Deformable-DETR** (SenseTime Research, Apache-2.0). The deformable-attention
+  implementation behind `MSDeformableAttention` in
+  `src/zoo/rtdetr/rtdetr_decoder.py` and `deformable_attention_core_func` in
+  `src/zoo/rtdetr/utils.py`. Apache-2.0, so covered by the same terms as the
+  RT-DETR material above.
+- **Ultralytics YOLOv5** (GPL-3.0, later AGPL-3.0). `src/optim/ema.py` carries an
+  upstream reference to YOLOv5's `torch_utils.py` for the exponential
+  moving-average helper, by way of RT-DETR. The file implements a standard EMA
+  update; the lineage is recorded here so it is disclosed explicitly rather than
+  left implied by a source comment.
+
+## Files derived from Fast R-CNN / py-faster-rcnn (MIT)
+
+Copyright (c) 2015 Microsoft Corporation, Ross Girshick.
+
+- `src/data/iit/iit_eval.py` - the `parse_rec()` and `voc_ap()` helpers,
+  including the `use_07_metric` 11-point interpolation branch, are the classic
+  PASCAL VOC evaluation routines. MIT, and therefore compatible with this
+  repository's own MIT licence.
+
 ## Datasets
 
 Neither dataset is redistributed by this repository, and neither is covered by

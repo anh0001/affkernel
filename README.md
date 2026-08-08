@@ -30,24 +30,33 @@ actually afford.
   queries are decoded, so there is no region-proposal stage and no per-instance
   RoI recompute.
 - **Deterministic and real time.** 16.3 ms median latency, 62 FPS on a single
-  RTX 6000 Ada at 640x640, fp32 — 12.7 ms and 78 FPS with fp16, CUDA graphs and
+  RTX 6000 Ada at 640x640, fp32 — 12.8 ms and 78 FPS with fp16, CUDA graphs and
   folded BatchNorm. No ensembling, no stochastic passes.
-- **Runs on the robot, not just the workstation.** 23 FPS end to end on a
-  Jetson AGX Orin in under 250 MiB of GPU memory, for 0.0007 `F_beta^w` — see
-  [Deployment on NVIDIA Jetson](#deployment-on-nvidia-jetson).
+- **Runs on the robot, not just the development machine.** 23.1 FPS end to end
+  on a Jetson AGX Orin within 0.23 GiB of peak allocated GPU memory, for 0.0007
+  `F_beta^w` — see [Deployment on NVIDIA Jetson](#deployment-on-nvidia-jetson).
 - **Resolution is the lever.** Raising the affordance readout from stride-8 to
-  stride-2 moves accuracy far more than any change to mask-head complexity, at
-  no added inference cost.
-- **Two benchmarks, one recipe.** The same configuration transfers to UMD
-  Part-Affordance without dataset-specific tuning.
+  stride-2 moves accuracy more consistently than any change to mask-head
+  complexity examined here, for +1.1 ms and +21 MiB at the final step.
+- **Two benchmarks, one recipe.** Retrained from scratch on UMD
+  Part-Affordance, the same configuration holds up without dataset-specific
+  tuning. This is a second-dataset check, not transfer or fine-tuning: no
+  IIT-AFF weights are carried over.
 
 ## Results
 
 ### IIT-AFF
 
 Weighted F-measure `F_beta^w` (Margolin et al.), mean over three training seeds
-(42, 7, 123), last-epoch EMA weights. IIT-AFF has no validation split, so
-checkpoint selection is fixed a priori rather than tuned on the test set.
+(42, 7, 123), last-epoch EMA weights.
+
+> **Read these results as exploratory, not confirmatory.** IIT-AFF ships no
+> validation split, so the same test set that produces the headline also
+> informed the recipe as it evolved, the component comparisons, and the choice
+> of the reported configuration. Fixing the last-epoch checkpoint a priori
+> prevents peak-checkpoint selection, but it does not control that broader
+> adaptive use. Treat the resolution finding as evidence from a single
+> benchmark rather than an estimate of generalisation.
 
 | Model | `F_beta^w` (beta^2=1) | `F_beta^w` (beta^2=0.3) | Latency | Deterministic |
 |---|---:|---:|---:|:--:|
@@ -56,15 +65,20 @@ checkpoint selection is fixed a priori rather than tuned on the test set.
 | Deterministic Swin-T (reported) | 0.883 | -- | 42 ms | yes |
 | Bayesian Swin-T deep ensemble (reported) | 0.906 | -- | ~1015 ms | no |
 
-AffKernel improves on the Mask R-CNN baseline at roughly a third of its latency,
-and runs at about 39% of the deterministic Swin-T's latency while trailing it by
-1.55 points. Peer numbers are quoted from their publications; see
+AffKernel improves on the Mask R-CNN baseline by 0.0235 and trails the
+deterministic Swin-T by 0.0155 and the Bayesian ensemble by 0.0385. Latencies
+are batch-1 timings **on each method's originally reported hardware and are not
+normalised** (peers on RTX 4090, ours on RTX 6000 Ada), so they indicate
+distinct operating regimes rather than a hardware-normalised speedup; no ratio
+between them is meaningful. Peer numbers are quoted from their publications; see
 [`docs/reproduction.md`](docs/reproduction.md) for the protocol caveats that
 apply when comparing across papers, in particular the beta convention.
 
-Mask quality on instances that *are* detected already exceeds the Swin-T
-baseline (0.893 vs 0.883). The residual gap is dominated by missed detections
-rather than by mask quality.
+On instances that *are* detected, mask quality reaches 0.893. This row excludes
+detection misses, so it is **not protocol-matched** to the peers' full-set
+figures and is not a state-of-the-art claim; it is a within-model diagnostic
+indicating that the residual gap is dominated by detection recall rather than by
+mask quality.
 
 ### Readout-resolution ladder
 
@@ -79,19 +93,36 @@ The detector is untouched across these rows; only the affordance readout changes
 
 ### UMD Part-Affordance
 
+Mean over the same three seeds, retrained from scratch. A single seed will not
+reproduce these means.
+
 | Split | `F_beta^w` (beta^2=1) |
 |---|---:|
-| Full test split | 0.8752 |
-| Human-annotated subset | 0.8799 |
+| Full test split | 0.8752 ± 0.0049 |
+| Human-annotated subset | 0.8799 ± 0.0048 |
+
+Protocol caveat: peer UMD numbers in the literature are compiled from a source
+whose split, ground-truth handling and beta convention are not stated, so our
+rows use a reconstructed AffordanceNet-lineage protocol. The human-annotated
+subset (every third frame) is itself a documented approximation. Cross-paper
+UMD comparisons should be read with that in mind.
+
+> **Not in this repository yet.** The paper additionally reports a
+> post-processing tier ("sub-threshold mask recovery") that recovers masks from
+> sub-gate queries and fills empty per-image, per-class slots, worth about
+> +0.0073 on IIT-AFF and producing the paper's best UMD row. It is not
+> implemented here, so the figures above are the pre-recovery ones and the
+> paper's best reported numbers cannot be reproduced from this code as it
+> stands.
 
 ### Actionability
 
-Predicted affordance regions are better grasp targets than detection-box centres:
-
-| Cue | IIT-AFF (300 images) | Isaac Sim, pose-jittered |
-|---|---:|---:|
-| Affordance-selected point | **93.3%** | **67.5%** |
-| Detection-box centre | 47.7% | 44.2% |
+Predicted affordance regions are better grasp targets than detection-box
+centres. The supporting numbers are being re-measured: the evaluation loop
+behind them counts only images in which a detection succeeded, which mislabels
+the denominator and overstates the absolute hit rate. The comparison itself
+(a large margin over the box centre) holds under either denominator. Figures
+will be restored here once the corrected measurement is finalised.
 
 ### RTX 6000 Ada
 
@@ -105,10 +136,10 @@ noted; *optimized* means fp16 with CUDA graphs and folded BatchNorm.
 | stride-4 | 15.2 ms | 65.9 | 421 MiB |
 | **stride-2 (headline)** | **16.3 ms** | **61.5** | **442 MiB** |
 | stride-4, optimized | 11.4 ms | 87.6 | 272 MiB |
-| **stride-2, optimized** | **12.7 ms** | **78.4** | **284 MiB** |
+| **stride-2, optimized** | **12.8 ms** | **78.4** | **284 MiB** |
 
-Raising the readout from stride-4 to stride-2 costs 1.1 ms and 21 MiB — the
-resolution lever is close to free at inference time, which is the point.
+Raising the readout from stride-4 to stride-2 costs +1.1 ms (+7%) and +21 MiB.
+That is a small price for the accuracy step, not a free one.
 
 Decoding more queries is also close to free, because the expensive affordance
 map is computed once and shared (stride-2, fp32):
@@ -175,13 +206,16 @@ times more than fp16 plus TensorRT, to save less time.
 </div>
 
 A ResNet-50vd backbone feeds an RT-DETR hybrid encoder and transformer decoder.
-In parallel, an affordance branch fuses the C2 lateral into a shared affordance
-feature map and upsamples it to stride-2. Each object query emits a small
-dynamic convolution kernel; that kernel is convolved with the shared map,
-restricted to the query's box, to produce that instance's affordance masks.
-Because the expensive feature map is computed once and shared, adding instances
-costs almost nothing, and raising the readout resolution costs nothing at
-inference time.
+In parallel, an affordance branch fuses one lateral carrying detail from the
+backbone's second-stage feature map into a shared affordance feature map and
+upsamples it to stride-2. Each object query emits a small dynamic convolution
+kernel; that kernel is convolved with the shared map to produce that instance's
+affordance masks. Box-normalised coordinate channels condition the decoding on
+the query's box, but this is soft conditioning over the full feature map, not
+RoI processing: the coordinates are defined outside the box as well, and no
+cropping or resampling takes place. Because the expensive feature map is
+computed once and shared, adding instances costs almost nothing, and raising the
+readout resolution adds only a small fixed cost (+1.1 ms at the final step).
 
 ## Installation
 
@@ -383,7 +417,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 --master_port=8989 \
 ## Evaluation
 
 ```bash
-# headline metric (beta^2=0.3, the AffordanceNet convention)
+# beta^2=0.3, the AffordanceNet-lineage convention (reported alongside, not the
+# headline; every cross-paper table in the paper uses beta^2=1)
 python tools/train.py -c <config> -r <checkpoint> --test-only
 
 # beta^2=1, matching the convention recent transformer baselines report
@@ -438,10 +473,11 @@ If you use this code or the released weights, please cite the paper:
 
 ```bibtex
 @article{risnumawan2026affkernel,
-  title   = {AffKernel: Single-Pass Affordance Segmentation with Per-Query
-             Dynamic Convolution for Real-Time Robotic Manipulation},
-  author  = {Risnumawan, Anhar},
-  journal = {IEEE Access},
+  title   = {AffKernel: High-Resolution Readout for Real-Time Visual
+             Affordance Segmentation},
+  author  = {Risnumawan, Anhar and Aji, Achmad Fahrul and
+             Fatahillah, Teuku Zikri and Kubota, Naoyuki},
+  journal = {Expert Systems with Applications},
   year    = {2026},
   note    = {Under review}
 }
@@ -455,8 +491,12 @@ request are reproduced in [`docs/datasets.md`](docs/datasets.md).
 AffKernel builds directly on [RT-DETR](https://github.com/lyuwenyu/RT-DETR) by
 lyuwenyu and, through it, on [DETR](https://github.com/facebookresearch/detr) by
 Facebook Research. Both are Apache-2.0 licensed, and substantial portions of
-`src/` are derived from them. The instance-conditioned dynamic-kernel decoding
-follows [CondInst](https://github.com/aim-uofa/AdelaiDet).
+`src/` are derived from them. The deformable-attention modules originate with
+[Deformable-DETR](https://github.com/fundamentalvision/Deformable-DETR)
+(SenseTime, Apache-2.0) and reach this codebase through RT-DETR. The
+instance-conditioned dynamic-kernel decoding follows the *method* published as
+CondInst (Tian et al., ECCV 2020); it is an independent implementation, and no
+code from the AdelaiDet repository is used or redistributed here.
 
 See [`NOTICE`](NOTICE) and [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)
 for the per-file attribution inventory.

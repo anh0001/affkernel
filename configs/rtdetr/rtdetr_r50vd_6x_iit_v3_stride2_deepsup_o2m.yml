@@ -12,7 +12,7 @@
 # train, matched ONE-TO-MANY (each GT repeated o2m_group_repeat times) so every
 # GT gets that many positive queries. The group is fully attention-isolated from
 # the primary one-to-one queries and DROPPED before inference -> 0 ms at test
-# (~24 ms / 42 FPS budget unchanged). Detection-only: no affordance kernels on
+# (~16 ms / 62 FPS budget unchanged). Detection-only: no affordance kernels on
 # the o2m group. Deepsup toggles inherited via deep-merge. Run with --seed 42.
 #
 # Decision rule: keep only if mean F_beta^w gain > +0.004 (3-seed sigma ~0.002)

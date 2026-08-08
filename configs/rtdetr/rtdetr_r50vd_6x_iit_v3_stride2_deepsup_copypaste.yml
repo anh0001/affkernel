@@ -14,7 +14,7 @@
 # per-pixel affordance labels + box) from hard-host images at native resolution
 # before the transform chain. Occluded existing masks are zeroed; placements
 # covering >20% of any existing GT box are re-sampled. Train-time only, so
-# inference is unchanged (~24 ms / 42 FPS). Deep-supervision toggles inherited.
+# inference is unchanged (~16 ms / 62 FPS). Deep-supervision toggles inherited.
 #
 # The donor set includes cup and knife (cup carries most w-grasp), with
 # scale_jitter up to 1.2, max_overlap 0.2, max_tries 20 and max_frac 0.7.

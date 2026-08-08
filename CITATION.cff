@@ -5,12 +5,18 @@ abstract: >-
   AffKernel couples RT-DETR object queries with a CondInst-style per-query
   dynamic-convolution kernel that decodes per-object affordance masks from a
   single shared high-resolution affordance map. Inference is single-pass,
-  NMS-free and deterministic, running at 42 FPS while reaching a weighted
+  NMS-free and deterministic, running at 62 FPS while reaching a weighted
   F-measure of 0.868 on IIT-AFF.
 type: software
 authors:
   - family-names: Risnumawan
     given-names: Anhar
+  - family-names: Aji
+    given-names: Achmad Fahrul
+  - family-names: Fatahillah
+    given-names: Teuku Zikri
+  - family-names: Kubota
+    given-names: Naoyuki
 repository-code: "https://github.com/anh0001/affkernel"
 license: MIT
 keywords:
@@ -22,11 +28,17 @@ keywords:
 preferred-citation:
   type: article
   title: >-
-    AffKernel: Single-Pass Affordance Segmentation with Per-Query Dynamic
-    Convolution for Real-Time Robotic Manipulation
+    AffKernel: High-Resolution Readout for Real-Time Visual Affordance
+    Segmentation
   authors:
     - family-names: Risnumawan
       given-names: Anhar
-  journal: "IEEE Access"
+    - family-names: Aji
+      given-names: Achmad Fahrul
+    - family-names: Fatahillah
+      given-names: Teuku Zikri
+    - family-names: Kubota
+      given-names: Naoyuki
+  journal: "Expert Systems with Applications"
   year: 2026
   notes: "Under review"

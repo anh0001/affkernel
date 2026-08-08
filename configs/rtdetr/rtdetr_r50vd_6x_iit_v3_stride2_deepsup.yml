@@ -21,7 +21,7 @@
 #      the ~320 feature grid. Per-matched-query, so cheap; train-time only.
 #
 # Detector, input resolution (640), eval_spatial_size, per-query decode cost and
-# num_top_queries are all untouched -> the ~24 ms / 42 FPS real-time budget is
+# num_top_queries are all untouched -> the ~16 ms / 62 FPS real-time budget is
 # preserved. Run with --seed 42 (matches the stride-2 anchor 0.8457).
 __include__: ['./rtdetr_r50vd_6x_iit_v3_stride2.yml']
 

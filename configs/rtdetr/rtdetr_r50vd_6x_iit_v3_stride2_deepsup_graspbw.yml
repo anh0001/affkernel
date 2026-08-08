@@ -12,7 +12,7 @@
 # Change vs deepsup: boundary pixels of the grasp class (affordance label 5) get
 # weight 8.0 instead of the global 4.0; every other class keeps 4.0. Train-time
 # only -- the eval path and per-query decode are byte-identical, so the
-# ~24 ms / 42 FPS real-time budget is unchanged. Deepsup toggles
+# ~16 ms / 62 FPS real-time budget is unchanged. Deepsup toggles
 # (aff_aux_loss_weight, aff_full_res_loss) are inherited via deep-merge. Run
 # with --seed 42 to compare against the deepsup seed-42 baseline.
 #
