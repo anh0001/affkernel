@@ -11,10 +11,18 @@ type: software
 authors:
   - family-names: Risnumawan
     given-names: Anhar
+  - family-names: Imaduddin
+    given-names: Hasan
   - family-names: Aji
     given-names: Achmad Fahrul
+  - family-names: Rochmanto
+    given-names: Raditya Artha
   - family-names: Fatahillah
     given-names: Teuku Zikri
+  - family-names: Assayfullooh
+    given-names: Faadhil
+  - family-names: Junaedy
+    given-names: Alfin
   - family-names: Kubota
     given-names: Naoyuki
 repository-code: "https://github.com/anh0001/affkernel"
@@ -33,10 +41,18 @@ preferred-citation:
   authors:
     - family-names: Risnumawan
       given-names: Anhar
+    - family-names: Imaduddin
+      given-names: Hasan
     - family-names: Aji
       given-names: Achmad Fahrul
+    - family-names: Rochmanto
+      given-names: Raditya Artha
     - family-names: Fatahillah
       given-names: Teuku Zikri
+    - family-names: Assayfullooh
+      given-names: Faadhil
+    - family-names: Junaedy
+      given-names: Alfin
     - family-names: Kubota
       given-names: Naoyuki
   journal: "Expert Systems with Applications"

@@ -38,10 +38,11 @@ actually afford.
 - **Resolution is the lever.** Raising the affordance readout from stride-8 to
   stride-2 moves accuracy more consistently than any change to mask-head
   complexity examined here, for +1.1 ms and +21 MiB at the final step.
-- **Two benchmarks, one recipe.** Retrained from scratch on UMD
+- **Two benchmarks, one recipe.** Retrained independently on UMD
   Part-Affordance, the same configuration holds up without dataset-specific
-  tuning. This is a second-dataset check, not transfer or fine-tuning: no
-  IIT-AFF weights are carried over.
+  tuning. This is a second-dataset check, not transfer or fine-tuning:
+  training starts from ImageNet-pretrained initialisation and carries over no
+  IIT-AFF weights.
 
 ## Results
 
@@ -102,8 +103,9 @@ inference, so the deployed graph is unchanged.
 
 ### UMD Part-Affordance
 
-Mean over the same three seeds, retrained from scratch. A single seed will not
-reproduce these means.
+Mean over the same three seeds, retrained independently from
+ImageNet-pretrained initialisation. A single seed will not reproduce these
+means.
 
 | Split | `F_beta^w` (beta^2=1) |
 |---|---:|
@@ -484,8 +486,10 @@ If you use this code or the released weights, please cite the paper:
 @article{risnumawan2026affkernel,
   title   = {AffKernel: High-Resolution Readout for Real-Time Visual
              Affordance Segmentation},
-  author  = {Risnumawan, Anhar and Aji, Achmad Fahrul and
-             Fatahillah, Teuku Zikri and Kubota, Naoyuki},
+  author  = {Risnumawan, Anhar and Imaduddin, Hasan and
+             Aji, Achmad Fahrul and Rochmanto, Raditya Artha and
+             Fatahillah, Teuku Zikri and Assayfullooh, Faadhil and
+             Junaedy, Alfin and Kubota, Naoyuki},
   journal = {Expert Systems with Applications},
   year    = {2026},
   note    = {Under review}
