@@ -490,7 +490,7 @@ If you use this code or the released weights, please cite the paper:
              Aji, Achmad Fahrul and Rochmanto, Raditya Artha and
              Fatahillah, Teuku Zikri and Assayfullooh, Faadhil and
              Junaedy, Alfin and Kubota, Naoyuki},
-  journal = {Expert Systems with Applications},
+  journal = {International Journal of Intelligent Robotics and Applications},
   year    = {2026},
   note    = {Under review}
 }
